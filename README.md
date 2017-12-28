@@ -4,3 +4,5 @@ A Discord bot for playing various games within the text environment including ga
 Currently supported games:
 * Connect 4
 * Tic-Tac-Toe
+
+Discord community link: [GamBit Discord](https://discord.gg/WYYYNjM)
