@@ -5,12 +5,15 @@ const pre="^";
 
 let gameCount=0;
 
-const gameNames=['tic tac toe','connect 4'];
+const gameNames=['tic tac toe','connect 4','othello'];
+const numbers=[':zero:',':one:',':two:',':three:',':four:',':five:',':six:',':seven:',':eight:',':nine:',':ten:'];
+const letters=[':black_large_square:',':regional_indicator_a:​',':regional_indicator_b:','​:regional_indicator_c:','​:regional_indicator_d:','​:regional_indicator_e:','​:regional_indicator_f:','​:regional_indicator_g:','​:regional_indicator_h:'];
 
 const openGames={};
 
 const games={};
 
+let userCount=0;
 const users={};
 
 //{game board functions
@@ -34,7 +37,6 @@ function TTTBoard(data){
 	}
 	return(ans);
 };
-
 function TTTWin(data){
     //cats game
     let cg=true;
@@ -104,7 +106,6 @@ function C4Board(data){
 	}
 	return(ans);
 };
-
 function C4Win(data){
 	let max = 0;
 	let on = 0;
@@ -176,6 +177,96 @@ function C4Win(data){
 	}
 	return 0;
 };
+
+function OthelloPoints(Board,player){
+    var P=0;
+    for(V5=0;V5<8;V5++){
+        for(V6=0;V6<8;V6++){
+            if(Board[V5][V6]===player){P++;}
+        }
+    }
+    return(P);
+};
+function OthelloSubmove(a,d,turn,board){
+    if(a[0]<0){return;}
+    if(a[0]>7){return;}
+    if(a[1]<0){return;}
+    if(a[1]>7){return;}
+    if(board[a[0]][a[1]]===0){return;}//a
+    if(board[a[0]][a[1]]===turn){return(true);}
+    else{
+        if(OthelloSubmove([a[0]+d[0],a[1]+d[1]],d,turn,board)){board[a[0]][a[1]]=turn;return(true);}
+    }
+};
+function OthelloSubcheck(a,d,Board,player){
+    if(a[0]<0){return;}
+    if(a[0]>7){return;}
+    if(a[1]<0){return;}
+    if(a[1]>7){return;}
+    if(Board[a[0]][a[1]]===0){return;}//b
+    if(Board[a[0]][a[1]]===player){return(true);}
+    else{
+        if(OthelloSubcheck([a[0]+d[0],a[1]+d[1]],d,Board,player)){return(true);}
+    }
+};
+function OthelloCheck(a,Board,player){
+		if(Board[a[0]][a[1]]!==0){return(false);}
+        for(let i=-1;i<2;i++){
+            for(let j=-1;j<2;j++){
+                if(!!i||!!j){
+                    if(OthelloSubcheck([a[0]+i,a[1]+j],[i,j],Board,player)&&Board[a[0]+i][a[1]+j]!==player){return(true);}
+                }
+            }
+        }
+};
+function OthelloMove(a,turn,board){
+    if(!a){return;}
+    if(a[0]===Math.floor(a[0])&&a[1]===Math.floor(a[1])&&board[a[0]][a[1]]===0&&OthelloCheck(a,board,turn)){
+        board[a[0]][a[1]]=turn;
+        for(let i=-1;i<2;i++){OthelloSubmove([a[0]+i,a[1]-1],[i,-1],turn,board);}
+        for(let i=-1;i<2;i++){OthelloSubmove([a[0]+i,a[1]+1],[i,1],turn,board);}
+        OthelloSubmove([a[0]-1,a[1]],[-1,0],turn,board);
+        OthelloSubmove([a[0]+1,a[1]],[1,0],turn,board);
+    }
+};
+function OthelloBoard(board,turn){
+	const chars=['\u274e',':black_circle:',':white_circle:',':eight_spoked_asterisk:'];
+	let txt='\n';
+	let OK=false;
+    let OVER=true;
+    for(let i=0;i<8;i++){
+		txt+=numbers[8-i];
+        for(let j=0;j<8;j++){
+            if(board[i][j]===1){txt+=chars[1];}
+            else if(board[i][j]===2){txt+=chars[2];}
+            else if(OthelloCheck([i,j],board,turn)){OK=true;txt+=chars[3];}
+			else{
+				txt+=chars[0];
+			}
+            if(board[i][j]===0&&OthelloCheck([i,j],board,-(turn-3))){OVER=false;}
+        }
+		txt+='\n';
+    }
+	txt+=':black_large_square::regional_indicator_a:​:regional_indicator_b:​:regional_indicator_c:​:regional_indicator_d:​:regional_indicator_e:​:regional_indicator_f:​:regional_indicator_g:​:regional_indicator_h:';
+    if(!OK){
+        if(OVER){
+            let pts=[OthelloPoints(board,1),OthelloPoints(board,2)];
+            if(pts[0]>pts[1]){
+				return([1,txt]);
+            }
+            if(pts[0]<pts[1]){
+				return([2,txt]);
+            }
+             if(pts[0]===pts[1]){
+				return([3,txt]);
+            }
+        }
+        else{
+			return([4,txt]);
+        }
+    }
+	return([0,txt]);
+};
 //}
 
 //{game functions
@@ -209,6 +300,20 @@ function newGame(game,host,server){
 			});
 		break;
 	//}
+	//{Othello
+		case(2):
+			return({
+				server:server,
+				game:2,
+				players:[host],
+				min:2,
+				max:2,
+				status:'open',
+				turn:Math.floor(Math.random()*2),
+				playfield:[[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,2,1,0,0,0],[0,0,0,1,2,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0]]
+			});
+		break;
+	//}
 	}
 };
 
@@ -224,6 +329,12 @@ function startGame(game){
 			case(1):
 				game.status='playing';
 				return("On your turn, post a number 1-7 in \\`s indicating where to go.\nexample: \\`4\\`\n\n<@"+game.players[game.turn]+">, it's your turn:"+C4Board(game.playfield));
+			break;
+		//}
+		//{Othello
+			case(2):
+				game.status='playing';
+				return("On your turn, post a coordinate a1-h8 in \\`s indicating where to go.\nexample: \\`c4\\`\n\n<@"+game.players[game.turn]+">, it's your turn:"+OthelloBoard(game.playfield,game.turn+1));
 			break;
 		//}
 	};
@@ -327,15 +438,70 @@ function gameAction(game,m,player){
 				return(rep+pf);
 			break;
 		//}
+		//{Othello
+			case(2):
+				if(game.players[game.turn]!==player){
+					return("It's not your turn, it's <@"+game.players[game.turn]+">'s.");
+				}
+				val=[];
+				val[0]=parseInt(m[1]);
+				if(val[0]&&val[0]>=1&&val[0]<=8){
+					val[0]=Math.round(val[0]);
+					val[0]=8-val[0];
+				}
+				else{
+					return('Invalid coordinate');
+				}
+				val[1]='abcdefgh'.indexOf(m[0]);
+				if(!(val[1]>=0&&val[1]<=7)){
+					return('Invalid coordinate');
+				}
+				if(!OthelloCheck(val,game.playfield,game.turn+1)){
+					return('Invalid move');
+				};
+				OthelloMove(val,game.turn+1,game.playfield);
+				game.turn++;
+				if(game.turn>1){game.turn=0;}
+				win=OthelloBoard(game.playfield,game.turn+1);
+				pf=win[1];
+				win=win[0];
+				if(win===4){
+					game.turn++;
+					if(game.turn>1){game.turn=0;}			
+				}
+				else if(win===3){
+					rep="Draw, nobody won. :cry:";
+					users[player].tied++;
+					users[game.players[game.turn]].tied++;
+				}
+				else if(win>0){
+					rep="<@"+player+"> WON!";
+					users[game.players[win]].won++;
+					users[game.players[Math.abs(win-1)]].lost++;
+				}
+				else{
+					rep="<@"+game.players[game.turn]+">, your turn!";
+				}
+				if(win>0&&win<4){
+					users[player].played++;
+					users[game.players[game.turn]].played++;
+					delete users[player].current[game.server];
+					delete users[game.players[game.turn]].current[game.server];
+					delete games[game.server][game.players[0]];
+				}
+				return(rep+pf);
+			break;
+		//}
 	}
 	return("error");
 };
 
 function quitGame(game,player){
 	switch(game.game){
-		//{tic tac toe connect 4
+		//{tic tac toe, connect 4, Othello
 			case(0):
 			case(1):
+			case(2):
 				if(game.status==='open'){
 					delete users[player].current[game.server];
 					delete games[game.server][game.players[0]];
@@ -360,22 +526,20 @@ function quitGame(game,player){
 
 //{client events
 client.on('ready', () => {
-  console.log(`${client.user.tag} online`);
-  client.user.setGame(`^help | ${client.guilds.size} servers`,'https://www.twitch.tv/efhiii');
+	console.log(`${client.user.tag} online`);
+	client.user.setGame(`^help | ${userCount} users`,'https://www.twitch.tv/efhiii');
 });
 
 client.on("guildCreate", guild => {
-  console.log(`joined ${guild.name} (id: ${guild.id})`);
-  client.user.setGame(`^help | ${client.guilds.size} servers`,'https://www.twitch.tv/efhiii');
+	console.log(`joined ${guild.name} (id: ${guild.id})`);
 });
 
 client.on("guildDelete", guild => {
-  console.log(`left ${guild.name} (id: ${guild.id})`);
-  client.user.setGame(`^help | ${client.guilds.size} servers`,'https://www.twitch.tv/efhiii');
+	console.log(`left ${guild.name} (id: ${guild.id})`);
 });
 
 client.on('message', msg => {
-	console.log(msg.author.tag+": "+msg.content);
+	//console.log(msg.author.tag+": "+msg.content);
 	if(msg.author.bot){return;}
 	let m=msg.content.toLowerCase();
 	if(m[0]!==pre){
@@ -437,6 +601,7 @@ client.on('message', msg => {
 			"tic tac toe - a simple 3-in-a-row game.\n"+
 		"\nlong games\n==========\n"+
 			"connect 4 - a simple 4-in-a-row game.\n"+
+			"Othello - a game of collecting territory.\n"+
 		"```");
 		return;
 	}
@@ -466,6 +631,8 @@ client.on('message', msg => {
 			quit:0,
 			current:{}
 		};
+		userCount++;
+		client.user.setGame(`^help | ${userCount} users`,'https://www.twitch.tv/efhiii');
 	}
 	
 	if(!games.hasOwnProperty(msg.guild.id)){
@@ -474,6 +641,7 @@ client.on('message', msg => {
 	
 	if(m === 'stats'){
 		let p=users[msg.author.id];
+		try{
 		msg.channel.send({embed:{
 			title:p.nick+"'s stats",
 			fields:[
@@ -484,6 +652,9 @@ client.on('message', msg => {
 	],
 			color: 3447003
 		}});//.setColor('lime green'));
+		}catch(e){
+			msg.channel.send('I need embed permissions in this channel.');
+		}
 		return;
 	}
 	
@@ -505,6 +676,7 @@ client.on('message', msg => {
 			return;
 		}
 		let p=users[m];
+		try{
 		msg.channel.send({embed:{
 			title:p.nick+"'s stats",
 			fields:[
@@ -515,6 +687,9 @@ client.on('message', msg => {
 	],
 			color: 3447003
 		}});//.setColor('lime green'));
+		}catch(e){
+			msg.channel.send('I need embed permissions in this channel.');
+		}
 		return;
 	}
 	
