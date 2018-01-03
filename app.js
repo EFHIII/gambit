@@ -5,7 +5,7 @@ const pre="^";
 
 let gameCount=0;
 
-const gameNames=['tic tac toe','connect 4','othello'];
+const gameNames=['tic tac toe','connect 4','othello','texas holdem'];
 const numbers=[':zero:',':one:',':two:',':three:',':four:',':five:',':six:',':seven:',':eight:',':nine:',':ten:'];
 const letters=[':black_large_square:',':regional_indicator_a:​',':regional_indicator_b:','​:regional_indicator_c:','​:regional_indicator_d:','​:regional_indicator_e:','​:regional_indicator_f:','​:regional_indicator_g:','​:regional_indicator_h:'];
 
@@ -267,6 +267,170 @@ function OthelloBoard(board,turn){
     }
 	return([0,txt]);
 };
+
+function newDeck(){
+	var deck=[];
+	for(var i=0;i<4;i++){
+		for(var j=0;j<13;j++){
+			deck.push([j,i]);
+		}
+	}
+	return(deck.sort(function(){return(Math.random());}));
+};
+function order(a,b){
+    return(b[0]-a[0]);
+};
+function Order(a,b){
+    return(b-a);
+};
+function PokerCombinations(cards,groups){
+        var result=[];
+        if (groups>cards.length){
+            return result;
+        }
+        if (groups===cards.length){
+            return [cards];
+        }
+        if (groups===1){
+            return cards.map(function(card){return[card];});
+        }
+        for (var i=0;i<cards.length-groups;i++){
+            var head =cards.slice(i,(i+1));
+            var tails =PokerCombinations(cards.slice(i+1),(groups-1));
+            for (var _i=0,tails_1=tails;_i<tails_1.length;_i++) {
+                var tail=tails_1[_i];
+                result.push(head.concat(tail));
+            }
+        }
+        return result;
+};
+function PokerRanked(cards){
+    var result = [];
+    for (var i=0;i<cards.length;i++) {
+        result.push(cards[i][0]);
+    }
+    // high to low
+    result.reverse();
+    // pairs and sets first
+    result.sort(function (a, b) {
+        return a.length > b.length ? -1 : a.length < b.length ? 1 : 0;
+    });
+    return result;
+};
+function PokerIsFlush(cards){
+    var type=cards[0][1];
+    for(var i=1;i<cards.length;i++){
+        if(cards[i][1]!==type){return(false);}
+    }
+    return(true);
+};
+function PokerIsStraight(cards){
+    var order=function(a,b){
+        return(a[0]-b[0]);
+    };
+    var hand=cards.sort(order);
+    var ans=true;
+    var at=hand[0][0];
+    for(var i=1;i<5;i++){
+        if(at+1===hand[i][0]){
+            at++;
+        }
+        else{
+            ans=false;
+            i=5;
+        }
+    }
+    if(ans){
+        return(true);
+    }
+    if(hand[4]===12&&hand[0]===0&&hand[1]===1&&hand[2]===2&&hand[3]===3){return(true);}
+};
+function PokerValue(cards,primary){
+    var str = '';
+    for (var i=4;i>=0;i--){
+        var r=cards[i][0];
+        var v=(r<10?'0':'')+r;
+        str += v;
+    }
+    return((primary*10000000000)+parseInt(str,0));
+};
+function PokerSame(cards){
+    var all=[0,0,0,0,0,0,0,0,0,0,0,0,0];
+    for(var i=0;i<5;i++){
+        all[cards[i][0]]++;
+    }
+    return(all.sort(Order));
+};
+function PokerCalculate(cards){
+    var isFlush=PokerIsFlush(cards);
+    var isStraight=PokerIsStraight(cards);
+    var same=PokerSame(cards);
+    if (isStraight&&isFlush&&cards[4]===12){return(PokerValue(cards,9));}//royal fulsh
+    else if(isStraight&&isFlush){return(PokerValue(cards,8));}//straight flush
+    else if(same[0]===4){return(PokerValue(cards,7));}//4 of a kind
+    else if(same[0]===3&&same[1]===2){return(PokerValue(cards,6));}//full house
+    else if(isFlush){return(PokerValue(cards,5));}//flush
+    else if(isStraight){return(PokerValue(cards,4));}//straight
+    else if(same[0]===3){return(PokerValue(cards,3));}//3 of a kind
+    else if(same[0]===2&&same[1]===2){return(PokerValue(cards,2));}//2 pair
+    else if(same[0]===2){return(PokerValue(cards,1));}//pair
+    else{return(PokerValue(cards,0));}//high card
+};
+function PokerScore(hand){
+    var best=0;
+    for(var i=0,c=PokerCombinations(hand,5);i<c.length;i++){
+        var score=PokerCalculate(c[i].sort(order));
+        if(score>best){
+            best=score;
+        }
+    }
+    return(best);
+};
+
+function PokerNewHand(game){
+	game.deck=newDeck();
+	game.fold=[];
+	game.bets=[];
+	game.hands=[];
+	game.dealer++;
+	if(game.dealer>=game.players.length){
+		game.dealer=0;
+	}
+	let=i=0;
+	while(i++<10&&!game.players[game.dealer]&&game.banks[game.dealer]<=0){
+		game.dealer++;
+		if(game.dealer>=game.players.length){
+			game.dealer=0;
+		}
+	}
+	game.turn=game.dealer+1;
+	if(game.turn>=game.players.length){
+		game.turn=0;
+	}
+	let=i=0;
+	while(i++<10&&!game.players[game.turn]&&game.banks[game.turn]<=0){
+		game.dturn++;
+		if(game.turn>=game.players.length){
+			game.turn=0;
+		}
+	}
+	game.pot=0;
+	game.phase=0;
+	for(i=0;i<10;i++){
+		game.fold[i]=false;
+		game.bets[i]=0;
+		game.hands[i]=[];
+		if(game.players[i]&&game.banks[i]>=2){
+			game.hands[i].push(game.deck[0]);
+			game.deck=game.deck.shift();
+			game.hands[i].push(game.deck[0]);
+			game.deck=game.deck.shift();
+			client.fetchUser(game.players[i]);
+			game.banks[i]-=2;
+			game.pot+=2;
+		}
+	}
+};
 //}
 
 //{game functions
@@ -314,6 +478,27 @@ function newGame(game,host,server){
 			});
 		break;
 	//}
+	//{Texas Hold'em
+		case(3):
+			return({
+				server:server,
+				game:3,
+				players:[host],
+				banks:[100,100,100,100,100,100,100,100,100,100],
+				min:2,
+				max:10,
+				status:'open',
+				phase:0,
+				turn:0,
+				dealer:-1,
+				deck:newDeck(),
+				hands:[],
+				bets:[],
+				fold:[],
+				pot:0
+			});
+		break;
+	//}
 	}
 };
 
@@ -335,6 +520,11 @@ function startGame(game){
 			case(2):
 				game.status='playing';
 				return("On your turn, post a coordinate a1-h8 in \\`s indicating where to go.\nexample: \\`c4\\`\n\n<@"+game.players[game.turn]+">, it's your turn:"+OthelloBoard(game.playfield,game.turn+1));
+			break;
+		//}
+		//{Texas Hold'em
+			case(3):
+				return("On your turn, you can check, fold, call, or bet. Check, fold, or call by posting \\`check\\`, \\`fold\\`, or \\`call\\` respectively. You may not check if there is already a bet and you may not call if there isn't already a bet. To bet, post your bet in \\`s indicating where to go.\nexample: \\`15\\`\n\nThe game will start when the host says \\`start\\`");
 			break;
 		//}
 	};
@@ -492,6 +682,23 @@ function gameAction(game,m,player){
 				return(rep+pf);
 			break;
 		//}
+		//{Texas Hold'em
+			case(3):
+				if(game.status==='open'&&player===game.players[0]&&m==='start'){
+					game.status='playing';
+					return(PokerNewHand(game));
+				}
+				if(m==='bank'){
+					return(game.banks[game.players.indexOf(player)]);
+				}
+				if(game.players[game.turn]!==player){
+					return("It's not your turn, it's <@"+game.players[game.turn]+">'s.");
+				}
+				if(m==='fold'){
+					
+				}
+			break;
+		//}
 	}
 	return("error");
 };
@@ -520,9 +727,194 @@ function quitGame(game,player){
 				delete games[game.server][game.players[0]];
 			break;
 		//}
+		//{Texas Hold'em
+			default:
+			break;
+		//}
 	}
 };
 //}
+const help={
+	echo:'syntax: echo <message>\nreplies with <message>',
+	help:'syntax: help <command*>\nprovides help on either all commands or a specified command',
+	ping:'syntax: ping\nreplies with "pong"',
+	rng:'syntax: rng <sides*>\nrolls an n sided die, default is 6',
+	stats:'syntax: stats <username*>\ngives statistics on either you or a specified user',
+	
+	game:'syntax: game list\nlists the currently supported games',
+	open:'syntax: open games\nlists all open games',
+	new:'syntax: new game <game>\ncreates a new open game of the game specified (chosen from the game list)',
+	join:'syntax: join <@host>\nlets you join a game with a given game host. You must mention the host.',
+	quit:'syntax: quit <reason*>\nlets you quit and forfeit a game you\'re in',
+	leave:'syntax: leave <reason*>\nlets you leave and forfeit a game you\'re in',
+};
+const GeneralCommands={
+	help:function(msg,args){
+		if(args.length===0){
+			msg.author.send("```markdown\nHelp\n====\n * The prefix ^ must be used at the beginning of any bot command *\n\n"+
+			"General Commands\n================\n"+
+				"echo  <message>- have the bot repeat a phrase\n\n"+
+				"help <command*> - The help command, with an optional command specific help argument\n\n"+
+				"ping - responds with 'pong'\n\n"+
+				"rng <sides> - rolls an n sided die, default is 6'\n\n"+
+				"stats <username*> - gives you stats on a given user. Default is yourself\n\n"+
+			"Game Commands\n=============\n"+
+				"game list - lists the currently supported games\n\n"+
+				"open games - lists all open games\n\n"+
+				"new game <game> - creates a new open game of the game specified (chosen from the game list)\n\n"+
+				"join <@host> - lets you join a game with a given game host\n\n"+
+				"quit game - lets you quit and forfeit a game you're in"+
+			"\n```");
+			return('Check your DMs.');
+		}
+		else{
+			if(help[args[0]]){
+				return(help[args[0]]);
+			}
+			else{return(args[0]+' is not a supported function.');}
+		}
+	},
+	ping:function(){
+		return('Ping!');
+	},
+	echo:function(msg,args){
+		return(args.join(' '));
+	},
+	rng:function(msg,args){
+		if(args.length===0){
+			return('You rolled a '+Math.floor(Math.random()*6+1)+'!');
+		}
+		else{
+			return('You rolled a '+Math.floor(Math.random()*parseInt(args[0])+1)+'!');
+		}
+	},
+};
+const GameCommands={
+	game:function(){
+		return(
+		"```markdown\nshort games\n===========\n"+
+			"tic tac toe - A simple 3-in-a-row game.\n"+
+		"\nlong games\n==========\n"+
+			"Connect 4 - A simple 4-in-a-row game.\n"+
+			"Othello - A game of collecting territory.\n"+
+			"Texas Holdem - The most popular poker variant\n"+
+		"```");
+	},
+	open:function(msg){
+		let ans="```markdown\nOpen games\n==========";
+		let gms=openGames[msg.guild.id];
+		for(let i in gms){
+			ans+="\n"+games[msg.guild.id][i].players.length+"/"+games[msg.guild.id][i].max+" "+gameNames[games[msg.guild.id][i].game]+" - host: "+users[i].nick;
+		}
+		ans+="```";
+		return(ans);
+	},
+	stats:function(msg,args){
+		if(args.length===0){
+			let p=users[msg.author.id];
+			try{
+			return({embed:{
+				title:p.nick+"'s stats",
+				fields:[
+					{name:'Won',value:p.won+"/"+p.played},
+					{name:'Tied',value:p.tied},
+					{name:'Quit',value:p.quit},
+					{name:'Server status',value:p.current.hasOwnProperty(msg.guild.id)?"Currently playing "+gameNames[games[msg.guild.id][p.current[msg.guild.id]].game]:"Not currently in a game on this server."}
+		],
+				color: 3447003
+			}});//.setColor('lime green'));
+			}catch(e){
+				return('I need embed permissions in this channel.');
+			}
+		}
+		else{
+			let m=args[0].replace('<@','').replace('!','').replace('>','');
+			if(!users.hasOwnProperty(m)){
+				return("That user isn't in my database");
+				return;
+			}
+			let p=users[m];
+			try{
+			return({embed:{
+				title:p.nick+"'s stats",
+				fields:[
+					{name:'Won',value:p.won+"/"+p.played},
+					{name:'Tied',value:p.tied},
+					{name:'Quit',value:p.quit},
+					{name:'Server status',value:p.current.hasOwnProperty(msg.guild.id)?"Currently playing "+gameNames[games[msg.guild.id][p.current[msg.guild.id]].game]:"Not currently in a game on this server."}
+		],
+				color: 3447003
+			}});
+			}catch(e){
+				return('I need embed permissions in this channel.');
+			}
+		}
+	},
+	quit:function(msg){
+		if(users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
+			quitGame(games[msg.guild.id][users[msg.author.id].current[msg.guild.id]],msg.author.id);
+			return('You have quit the game.');
+		}
+		else{
+			return("You aren't in a game on this server so you can't quit! MUHAHAHA!");			
+		}
+	},
+	leave:function(msg){
+		if(users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
+			quitGame(games[msg.guild.id][users[msg.author.id].current[msg.guild.id]],msg.author.id);
+			return('You have left the game.');
+		}
+		else{
+			return("Who do you think you are, trying to leave a game you're not even in?");			
+		}
+	},
+	new:function(msg,args){
+		if(users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
+			return("You can't start a new game in a server where you're already participating in another game.");
+		}
+		let mm=args.shift();
+		let m=args.join(' ');
+		let good=false;
+		for(let i=gameNames.length-1;i>=0;i--){
+			if(m===gameNames[i]){
+				games[msg.guild.id][msg.author.id]=newGame(i,msg.author.id,msg.guild.id);
+				openGames[msg.guild.id][msg.author.id]=i;
+				users[msg.author.id].current[msg.guild.id]=msg.author.id;
+				let txt="A new game of "+gameNames[i]+" has been successfully created!";
+				i=0;
+				good=true;
+				return(txt);
+			}
+		}
+		if(!good){
+			return('sorry, '+m+' is not currently supported.');
+		}
+	},
+	join:function(msg,args){
+		if(users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
+			return("You can't join a game in a server where you're already participating in another game.");
+		}
+		let m=args[0].replace('<@','').replace('!','').replace('>','');
+		if(openGames[msg.guild.id].hasOwnProperty(m)){
+			const game=games[msg.guild.id][m];
+			game.players.push(msg.author.id);
+			users[msg.author.id].current[msg.guild.id]=m;
+			if(game.max===game.players.length){
+				delete openGames[msg.guild.id][m];
+			}
+			if(game.min===game.players.length){
+				msg.channel.send("<@"+msg.author.id+"> joined <@"+m+">'s game of "+gameNames[game.game]);
+				return(startGame(game));
+			}
+			else{
+				return("<@"+msg.author.id+"> joined <@"+m+">'s game of "+gameNames[game.game]);
+			}
+		}
+		else{
+			return("<@"+m+"> isn't hosting a joinable game right now.");
+		}
+	},
+};
 
 //{client events
 client.on('ready', () => {
@@ -552,75 +944,20 @@ client.on('message', msg => {
 		return;
 	};
 	m=m.substr(1);
-	//{help
-		if(m==='help'){
-			msg.channel.send("```markdown\nHelp\n====\n * The prefix ^ must be used at the beginning of any bot command *\n\nGeneral Commands\n================\necho  <message>- have the bot repeat a phrase\n\nhelp <command*> - The help command, with an optional command specific help argument\n\nping - responds with 'pong'\n\nstats <username*> - gives you stats on a given user. Default is yourself\n\nGame Commands\n=============\ngame list - lists the currently supported games\n\nopen games - lists all open games\n\nnew game <game> - creates a new open game of the game specified (chosen from the game list)\n\njoin <@host> - lets you join a game with a given game host\n\nquit game - lets you quit and forfeit a game you're in\n```");
-			return;
-		}
-		if(m.startsWith('help ')){
-			m=m.substr(5);
-			switch(m){
-				case('echo'):
-					msg.channel.send('syntax: echo <message>\nreplies with <message>');
-				break;
-				case('help'):
-					msg.channel.send('syntax: help <command*>\nprovides help on either all commands or a specified command');
-				break;
-				case('ping'):
-					msg.channel.send('syntax: ping\nreplies with "pong"');
-				break;
-				case('stats'):
-					msg.channel.send('syntax: stats <username*>\ngives statistics on either you or a specified user');
-				break;
-				default:
-					msg.channel.send(m+' is not a supported function.');
-			}
-			return;
-		}
-	//}
-	
-	//{general commands
-	if (m.startsWith('echo ')) {
-		msg.channel.send(msg.content.substr(6));
+	m = m.split(" ");
+	let cmd=m.shift();
+	if(GeneralCommands.hasOwnProperty(cmd)){
+		msg.channel.send(GeneralCommands[cmd](msg,m));
 		return;
 	}
-	if (m === 'ping') {
-		msg.channel.send('Pong!');
-		return;
-	}
-	//}
 	
-	//{game commands
 	if(!msg.guild){
 		msg.channel.send('invalid command');
 		return;
 	}
-	
-	if (m === 'game list') {
-		msg.channel.send("```markdown\nshort games\n===========\n"+
-			"tic tac toe - a simple 3-in-a-row game.\n"+
-		"\nlong games\n==========\n"+
-			"connect 4 - a simple 4-in-a-row game.\n"+
-			"Othello - a game of collecting territory.\n"+
-		"```");
-		return;
-	}
-	
 	if(!openGames.hasOwnProperty(msg.guild.id)){
 		openGames[msg.guild.id]={};
 	}
-	
-	if (m === 'open games') {
-		let ans="```markdown\nOpen games\n==========";
-		let gms=openGames[msg.guild.id];
-		for(let i in gms){
-			ans+="\n"+games[msg.guild.id][i].players.length+"/"+games[msg.guild.id][i].max+" "+gameNames[games[msg.guild.id][i].game]+" - host: "+users[i].nick;
-		}
-		ans+="```";
-		msg.channel.send(ans);
-		return;
-	}
-	
 	if(!users.hasOwnProperty(msg.author.id)){
 		users[msg.author.id]={
 			nick:msg.author.username,
@@ -634,112 +971,15 @@ client.on('message', msg => {
 		userCount++;
 		client.user.setGame(`^help | ${userCount} users`,'https://www.twitch.tv/efhiii');
 	}
-	
 	if(!games.hasOwnProperty(msg.guild.id)){
 		games[msg.guild.id]={};
 	}
 	
-	if(m === 'stats'){
-		let p=users[msg.author.id];
-		try{
-		msg.channel.send({embed:{
-			title:p.nick+"'s stats",
-			fields:[
-				{name:'Won',value:p.won+"/"+p.played},
-				{name:'Tied',value:p.tied},
-				{name:'Quit',value:p.quit},
-				{name:'Server status',value:p.current.hasOwnProperty(msg.guild.id)?"Currently playing "+gameNames[games[msg.guild.id][p.current[msg.guild.id]].game]:"Not currently in a game on this server."}
-	],
-			color: 3447003
-		}});//.setColor('lime green'));
-		}catch(e){
-			msg.channel.send('I need embed permissions in this channel.');
-		}
+	if(GameCommands.hasOwnProperty(cmd)){
+		msg.channel.send(GameCommands[cmd](msg,m));
 		return;
 	}
 	
-	if(m.startsWith('quit')){
-		if(users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
-			quitGame(games[msg.guild.id][users[msg.author.id].current[msg.guild.id]],msg.author.id);
-			msg.channel.send('You have left the game.');
-		}
-		else{
-			msg.channel.send("You aren't in a game on this server so you can't quit! MUHAHAHA!");			
-		}
-		return;
-	}
-	
-	if(m.startsWith('stats ')){
-		m=m.substr(6).replace('<@','').replace('!','').replace('>','');;
-		if(!users.hasOwnProperty(m)){
-			msg.channel.send("That user isn't in my database");
-			return;
-		}
-		let p=users[m];
-		try{
-		msg.channel.send({embed:{
-			title:p.nick+"'s stats",
-			fields:[
-				{name:'Won',value:p.won+"/"+p.played},
-				{name:'Tied',value:p.tied},
-				{name:'Quit',value:p.quit},
-				{name:'Server status',value:p.current.hasOwnProperty(msg.guild.id)?"Currently playing "+gameNames[games[msg.guild.id][p.current[msg.guild.id]].game]:"Not currently in a game on this server."}
-	],
-			color: 3447003
-		}});//.setColor('lime green'));
-		}catch(e){
-			msg.channel.send('I need embed permissions in this channel.');
-		}
-		return;
-	}
-	
-	if (m.startsWith('new game ')) {
-		if(users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
-			msg.channel.send("You can't start a new game in a server where you're already participating in another game.");
-			return;
-		}
-		m=m.substr(9);
-		let good=false;
-		for(let i=gameNames.length-1;i>=0;i--){
-			if(m===gameNames[i]){
-				games[msg.guild.id][msg.author.id]=newGame(i,msg.author.id,msg.guild.id);
-				openGames[msg.guild.id][msg.author.id]=i;
-				users[msg.author.id].current[msg.guild.id]=msg.author.id;
-				msg.channel.send("A new game of "+gameNames[i]+" has been successfully created!");
-				i=0;
-				good=true;
-			}
-		}
-		if(!good){
-			msg.channel.send('sorry, '+m+' is not currently supported.');
-		}
-		return;
-	}
-	
-	if (m.startsWith('join ')) {
-		if(users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
-			msg.channel.send("You can't join a game in a server where you're already participating in another game.");
-			return;
-		}
-		m=m.substr(5).replace('<@','').replace('!','').replace('>','');
-		if(openGames[msg.guild.id].hasOwnProperty(m)){
-			const game=games[msg.guild.id][m];
-			msg.channel.send("<@"+msg.author.id+"> joined <@"+m+">'s game of "+gameNames[game.game]);
-			game.players.push(msg.author.id);
-			users[msg.author.id].current[msg.guild.id]=m;
-			if(game.max===game.players.length){
-				delete openGames[msg.guild.id][m];
-			};
-			if(game.min===game.players.length){
-				msg.channel.send(startGame(game));
-			};
-		}
-		else{
-			msg.channel.send("<@"+m+"> isn't hosting a joinable game right now.");
-		}
-		return;
-	}
-	//}
 });
 
 client.login('[REDACTED]');
