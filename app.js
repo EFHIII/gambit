@@ -788,6 +788,12 @@ const GeneralCommands={
 			return('You rolled a '+Math.floor(Math.random()*parseInt(args[0])+1)+'!');
 		}
 	},
+	'yes!':function(){
+		return('YES!');
+	},
+	yes:function(){
+		return('YES!');
+	}
 };
 const GameCommands={
 	game:function(){
