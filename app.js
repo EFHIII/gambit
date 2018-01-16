@@ -408,8 +408,8 @@ function PokerNewHand(game){
 		game.turn=0;
 	}
 	let=i=0;
-	while(i++<10&&!game.players[game.turn]&&game.banks[game.turn]<=0){
-		game.dturn++;
+	while(i++<10&&(!game.players[game.turn]||game.banks[game.turn]<=0)){
+		game.turn++;
 		if(game.turn>=game.players.length){
 			game.turn=0;
 		}
@@ -422,14 +422,20 @@ function PokerNewHand(game){
 		game.hands[i]=[];
 		if(game.players[i]&&game.banks[i]>=2){
 			game.hands[i].push(game.deck[0]);
-			game.deck=game.deck.shift();
+			game.deck.shift();
 			game.hands[i].push(game.deck[0]);
-			game.deck=game.deck.shift();
+			game.deck.shift();
 			client.fetchUser(game.players[i]);
 			game.banks[i]-=2;
 			game.pot+=2;
 		}
+		else{
+			game.fold[i]=true;
+		}
 	}
+};
+function PokerNextTurn(game){
+	return('turn error');
 };
 //}
 
@@ -484,7 +490,7 @@ function newGame(game,host,server){
 				server:server,
 				game:3,
 				players:[host],
-				banks:[100,100,100,100,100,100,100,100,100,100],
+				banks:[100],
 				min:2,
 				max:10,
 				status:'open',
@@ -501,30 +507,46 @@ function newGame(game,host,server){
 	//}
 	}
 };
+function gameJoin(game,player){
+	switch(game.game){
+		//{Texas Hold'em
+		case(3):
+			game.banks.push(100);
+			game.fold.push(true);
+			game.players.push(player);
+		break;
+		//}
+		//{everything else
+		default:
+			game.players.push(player);
+		break;
+		//}
+	}
+};
 
 function startGame(game){
 	switch(game.game){
 		//{tic tac toe
 			case(0):
 				game.status='playing';
-				return("On your turn, post a number 1-9 in \\`s indicating where to go.\nexample: \\`5\\`\n\n<@"+game.players[game.turn]+">, it's your turn:"+TTTBoard(game.playfield));
+				return("On your turn, post a number 1-9 in \\`s indicating where to go.\nexample: `\\`5\\``\n\n<@"+game.players[game.turn]+">, it's your turn:"+TTTBoard(game.playfield));
 			break;
 		//}
 		//{connect 4
 			case(1):
 				game.status='playing';
-				return("On your turn, post a number 1-7 in \\`s indicating where to go.\nexample: \\`4\\`\n\n<@"+game.players[game.turn]+">, it's your turn:"+C4Board(game.playfield));
+				return("On your turn, post a number 1-7 in \\`s indicating where to go.\nexample: `\\`4\\``\n\n<@"+game.players[game.turn]+">, it's your turn:"+C4Board(game.playfield));
 			break;
 		//}
 		//{Othello
 			case(2):
 				game.status='playing';
-				return("On your turn, post a coordinate a1-h8 in \\`s indicating where to go.\nexample: \\`c4\\`\n\n<@"+game.players[game.turn]+">, it's your turn:"+OthelloBoard(game.playfield,game.turn+1));
+				return("On your turn, post a coordinate a1-h8 in \\`s indicating where to go.\nexample: `\\`c4\\``\n\n<@"+game.players[game.turn]+">, it's your turn:"+OthelloBoard(game.playfield,game.turn+1));
 			break;
 		//}
 		//{Texas Hold'em
 			case(3):
-				return("On your turn, you can check, fold, call, or bet. Check, fold, or call by posting \\`check\\`, \\`fold\\`, or \\`call\\` respectively. You may not check if there is already a bet and you may not call if there isn't already a bet. To bet, post your bet in \\`s indicating where to go.\nexample: \\`15\\`\n\nThe game will start when the host says \\`start\\`");
+				return("On your turn, you can check, fold, call, or bet. Check, fold, or call by posting `\\`check\\``, `\\`fold\\``, or `\\`call\\`` respectively. You may not check if there is already a bet and you may not call if there isn't already a bet. To bet, post your bet in \\`s indicating your bet.\nexample: `\\`15\\``\n\nTo see how much you have, post `\\`bank\\``\nTo see how much everyone has, post `\\`banks\\``\n\nThe game will start when the host says `\\`start\\``");
 			break;
 		//}
 	};
@@ -686,17 +708,33 @@ function gameAction(game,m,player){
 			case(3):
 				if(game.status==='open'&&player===game.players[0]&&m==='start'){
 					game.status='playing';
-					return(PokerNewHand(game));
+					PokerNewHand(game);
+					return('First betting phase: <@'+game.players[game.turn]+"> bets first.");
 				}
 				if(m==='bank'){
-					return(game.banks[game.players.indexOf(player)]);
+					return('$'+game.banks[game.players.indexOf(player)]);
+				}
+				if(m==='banks'){
+					let fs=[];
+					for(let i=0;i<10;i++){
+						if(game.players[i]){
+							fs.push({name:game.players[i]+game.dealer==i?':white_circle:':'',value:game.banks[i]<=0?'Bankrupt':'$'+game.banks[i]});
+						}
+					}
+					return({embed:{
+						title:"Texas Hold'em standings",
+						fields:fs,
+						color: 7868243
+						}});
 				}
 				if(game.players[game.turn]!==player){
 					return("It's not your turn, it's <@"+game.players[game.turn]+">'s.");
 				}
 				if(m==='fold'){
-					
+					game.fold[game.players.indexOf(player)]=true;
+					return(PokerNextTurn(game));
 				}
+				return('`'+m+'` is not a Texas Holdem function');
 			break;
 		//}
 	}
@@ -725,10 +763,12 @@ function quitGame(game,player){
 					delete users[game.players[i]].current[game.server];
 				}
 				delete games[game.server][game.players[0]];
+				return('You have forfieted the game of '+game.game+'.');
 			break;
 		//}
 		//{Texas Hold'em
 			default:
+				return("You can't quit this game, the only way to leave is for the host("+game.players[0]+") to quit.");
 			break;
 		//}
 	}
@@ -858,8 +898,7 @@ const GameCommands={
 	},
 	quit:function(msg){
 		if(users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
-			quitGame(games[msg.guild.id][users[msg.author.id].current[msg.guild.id]],msg.author.id);
-			return('You have quit the game.');
+			return(quitGame(games[msg.guild.id][users[msg.author.id].current[msg.guild.id]],msg.author.id));
 		}
 		else{
 			return("You aren't in a game on this server so you can't quit! MUHAHAHA!");			
@@ -867,8 +906,7 @@ const GameCommands={
 	},
 	leave:function(msg){
 		if(users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
-			quitGame(games[msg.guild.id][users[msg.author.id].current[msg.guild.id]],msg.author.id);
-			return('You have left the game.');
+			return(quitGame(games[msg.guild.id][users[msg.author.id].current[msg.guild.id]],msg.author.id));
 		}
 		else{
 			return("Who do you think you are, trying to leave a game you're not even in?");			
@@ -903,7 +941,7 @@ const GameCommands={
 		let m=args[0].replace('<@','').replace('!','').replace('>','');
 		if(openGames[msg.guild.id].hasOwnProperty(m)){
 			const game=games[msg.guild.id][m];
-			game.players.push(msg.author.id);
+			gameJoin(game,msg.author.id);
 			users[msg.author.id].current[msg.guild.id]=m;
 			if(game.max===game.players.length){
 				delete openGames[msg.guild.id][m];
