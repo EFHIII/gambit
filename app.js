@@ -6,9 +6,11 @@ const pre="^";
 let gameCount=0;
 
 const gameNames=['tic tac toe','connect 4','othello','texas holdem'];
-const numbers=[':zero:',':one:',':two:',':three:',':four:',':five:',':six:',':seven:',':eight:',':nine:',':ten:'];
+const numbers=[':zero:',':one:',':two:',':three:',':four:',':five:',':six:',':seven:',':eight:',':nine:',':keycap_ten:'];
 const letters=[':black_large_square:',':regional_indicator_a:​',':regional_indicator_b:','​:regional_indicator_c:','​:regional_indicator_d:','​:regional_indicator_e:','​:regional_indicator_f:','​:regional_indicator_g:','​:regional_indicator_h:'];
-
+const suits=[':clubs:',':diamonds:',':hearts:',':spades:'];
+const cardValues=[':two:',':three:',':four:',':five:',':six:',':seven:',':eight:',':nine:',':keycap_ten:',':regional_indicator_j:',':regional_indicator_q:',':regional_indicator_k:',':regional_indicator_a:'];
+const hands=['High Card','Pair','2 Pair','3 of a Kind','Straight','Flush','Full House','4 of a Kind','Straight Flush','Royal Flush'];
 const openGames={};
 
 const games={};
@@ -268,6 +270,22 @@ function OthelloBoard(board,turn){
 	return([0,txt]);
 };
 
+function DM(id,msg){
+	client.fetchUser(id).then(x=>x.send(msg));
+};
+function printCards(cards){
+	let txt='';
+	for(let i=0;i<cards.length;i++){
+		txt+=cardValues[cards[i][0]];
+		if(i<cards.length-1){txt+=' :black_small_square: ';}
+	}
+	txt+='\n';
+	for(let i=0;i<cards.length;i++){
+		txt+=suits[cards[i][1]];
+		if(i<cards.length-1){txt+=' :black_small_square: ';}
+	}
+	return(txt);
+};
 function newDeck(){
 	var deck=[];
 	for(var i=0;i<4;i++){
@@ -275,7 +293,7 @@ function newDeck(){
 			deck.push([j,i]);
 		}
 	}
-	return(deck.sort(function(){return(Math.random());}));
+	return(deck.sort(function(){return(Math.random()-0.5);}));
 };
 function order(a,b){
     return(b[0]-a[0]);
@@ -365,7 +383,7 @@ function PokerCalculate(cards){
     var isFlush=PokerIsFlush(cards);
     var isStraight=PokerIsStraight(cards);
     var same=PokerSame(cards);
-    if (isStraight&&isFlush&&cards[4]===12){return(PokerValue(cards,9));}//royal fulsh
+    if (isStraight&&isFlush&&cards[4]===12){return(PokerValue(cards,9));}//royal flush
     else if(isStraight&&isFlush){return(PokerValue(cards,8));}//straight flush
     else if(same[0]===4){return(PokerValue(cards,7));}//4 of a kind
     else if(same[0]===3&&same[1]===2){return(PokerValue(cards,6));}//full house
@@ -380,6 +398,7 @@ function PokerScore(hand){
     var best=0;
     for(var i=0,c=PokerCombinations(hand,5);i<c.length;i++){
         var score=PokerCalculate(c[i].sort(order));
+		console.log(score);
         if(score>best){
             best=score;
         }
@@ -389,6 +408,7 @@ function PokerScore(hand){
 
 function PokerNewHand(game){
 	game.deck=newDeck();
+	game.maxBet=0;
 	game.fold=[];
 	game.bets=[];
 	game.hands=[];
@@ -420,22 +440,133 @@ function PokerNewHand(game){
 		game.fold[i]=false;
 		game.bets[i]=0;
 		game.hands[i]=[];
-		if(game.players[i]&&game.banks[i]>=2){
+		if(game.players[i]&&game.banks[i]>=game.ante){
 			game.hands[i].push(game.deck[0]);
 			game.deck.shift();
 			game.hands[i].push(game.deck[0]);
 			game.deck.shift();
-			client.fetchUser(game.players[i]);
-			game.banks[i]-=2;
-			game.pot+=2;
+			DM(game.players[i],printCards(game.hands[i]));
+			game.banks[i]-=game.ante;
+			game.pot+=game.ante;
 		}
 		else{
 			game.fold[i]=true;
 		}
 	}
 };
+function PokerNextPhase(game){
+	game.phase++;
+	game.good=false;
+	if(game.phase===4){
+		let top=[0,[]];
+		let txt=[];
+		let table=game.deck.slice(0,5);
+		txt.push('The table:\n'+printCards(table));
+		for(let i=0;i<game.players.length;i++){
+			let fullHand=table.concat(game.hands[i]);
+			let score=PokerScore(fullHand);
+			txt.push('<@'+game.players[i]+'>: '+hands[Math.floor(score/10000000000)]+'\n'+printCards(game.hands[i]));
+			console.log(fullHand);
+			console.log(score+' : '+users[game.players[i]].nick);
+			if(score>top[0]){
+				top[0]=score;
+				top[1]=[i];
+			}
+			else if(score===top[0]){
+				top[1].push(i);
+			}
+		}
+		for(let i=0;i<top[1].length;i++){
+			game.banks[top[1][i]]+=game.pot/top[1].length;
+		}
+		let oldPot=game.pot;
+		PokerNewHand(game);
+		if(top[1].length>1){
+			let tmp="";
+			for(let i=0;i<top[1].length;i++){
+				tmp+="<@"+game.players[top[1][i]]+">";
+				if(i<top[1].length-1){
+					tmp+=", ";
+				}
+				if(i===top[1].length-2){
+					tmp+="and ";
+				}
+			}
+			txt.push(tmp+" won $"+(oldPot/top[1].length)+"!\n",
+				'Everyone antes $'+game.ante+'. First betting phase: <@'+game.players[game.turn]+'> bets first.');
+		}
+		else{
+			txt.push("<@"+game.players[top[1][0]]+"> won $"+oldPot+"!\n",
+				'Everyone antes $'+game.ante+'. First betting phase: <@'+game.players[game.turn]+'> bets first.');
+		}
+		return(txt);
+	}
+	game.maxBet=0;
+	game.bets=[];
+	game.turn=game.dealer+1;
+	if(game.turn>=game.players.length){
+		game.turn=0;
+	}
+	let=i=0;
+	while(i++<10&&(!game.players[game.turn]||game.banks[game.turn]<=0)){
+		game.turn++;
+		if(game.turn>=game.players.length){
+			game.turn=0;
+		}
+	}
+	for(i=0;i<game.players.length;i++){
+		game.bets[i]=0;
+	}
+	let count=[0,3,4,5];
+	let title=[,'flop','turn','river'];
+	let table=game.deck.slice(0,count[game.phase]);
+	return(["Now the "+title[game.phase]+".\n"+printCards(table),"<@"+game.players[game.turn]+"> bets first."]);
+}
 function PokerNextTurn(game){
-	return('turn error');
+	game.turn++;
+	if(game.turn>game.players.length){
+		game.turn=0;
+	}
+	if(game.players.length<2){
+		return(['Not enough players.']);
+	}
+	let stillIn=0;
+	let belowMax=false;
+	for(let i=0;i<game.players.length;i++){
+		if(!game.fold[i]){
+			stillIn++;
+			if(game.bets[i]<game.maxBet){
+				belowMax=true;
+			}
+		}
+	}
+	if(stillIn<2){
+		for(let i=0;i<game.players.length;i++){
+			if(!game.fold[i]){
+				game.banks[i]+=game.pot;
+				game.good=false;
+				let oldPot=game.pot;
+				PokerNewHand(game);
+				return(["<@"+game.players[i]+"> won $"+oldPot+"!\n",
+				'Everyone antes $'+game.ante+'. First betting phase: <@'+game.players[game.turn]+'> bets first.']);
+			}
+		}
+	}
+	let newlyGood=false;
+	if(!game.good&&game.turn===game.dealer){
+		game.good=true;
+		newlyGood=true;
+	}
+	if(game.fold[game.turn]){
+		if(!game.good||newlyGood||belowMax){
+			return(PokerNextTurn(game));
+		}
+		return(PokerNextPhase(game));
+	}
+	if(game.good&&!newlyGood&&!belowMax){
+		return(PokerNextPhase(game));
+	}
+	return(['<@'+game.players[game.turn]+'>, your bet, the bet is at $'+game.maxBet+'.']);
 };
 //}
 
@@ -496,8 +627,11 @@ function newGame(game,host,server){
 				status:'open',
 				phase:0,
 				turn:0,
+				good:false,
 				dealer:-1,
 				deck:newDeck(),
+				ante:2,
+				maxBet:0,
 				hands:[],
 				bets:[],
 				fold:[],
@@ -529,24 +663,24 @@ function startGame(game){
 		//{tic tac toe
 			case(0):
 				game.status='playing';
-				return("On your turn, post a number 1-9 in \\`s indicating where to go.\nexample: `\\`5\\``\n\n<@"+game.players[game.turn]+">, it's your turn:"+TTTBoard(game.playfield));
+				return("```\nOn your turn, post a number 1-9 in `s indicating where to go.\nexample: `5`\n```\n\n<@"+game.players[game.turn]+">, it's your turn:"+TTTBoard(game.playfield));
 			break;
 		//}
 		//{connect 4
 			case(1):
 				game.status='playing';
-				return("On your turn, post a number 1-7 in \\`s indicating where to go.\nexample: `\\`4\\``\n\n<@"+game.players[game.turn]+">, it's your turn:"+C4Board(game.playfield));
+				return("```\nOn your turn, post a number 1-7 in `s indicating where to go.\nexample: `4`\n```\n\n<@"+game.players[game.turn]+">, it's your turn:"+C4Board(game.playfield));
 			break;
 		//}
 		//{Othello
 			case(2):
 				game.status='playing';
-				return("On your turn, post a coordinate a1-h8 in \\`s indicating where to go.\nexample: `\\`c4\\``\n\n<@"+game.players[game.turn]+">, it's your turn:"+OthelloBoard(game.playfield,game.turn+1));
+				return("```\nOn your turn, post a coordinate a1-h8 in `s indicating where to go.\nexample: `c4`\n```\n\n<@"+game.players[game.turn]+">, it's your turn:"+OthelloBoard(game.playfield,game.turn+1));
 			break;
 		//}
 		//{Texas Hold'em
 			case(3):
-				return("On your turn, you can check, fold, call, or bet. Check, fold, or call by posting `\\`check\\``, `\\`fold\\``, or `\\`call\\`` respectively. You may not check if there is already a bet and you may not call if there isn't already a bet. To bet, post your bet in \\`s indicating your bet.\nexample: `\\`15\\``\n\nTo see how much you have, post `\\`bank\\``\nTo see how much everyone has, post `\\`banks\\``\n\nThe game will start when the host says `\\`start\\``");
+				return("```javascript\nOn your turn, you can check, fold, call, or bet. Check, fold, or call by posting `check`, `fold`, or `call` respectively. You may not check when there is already a bet and you may not call when there is not already a bet. To bet, post your bet inside ``s indicating your bet.\nexample: `15`\n\nTo see how much you have, post `bank`\nTo see how much everyone has, post `banks`\nTo see the hands chart, post `hands`\n\nThe game will start when the host says `start`\n```");
 			break;
 		//}
 	};
@@ -706,35 +840,93 @@ function gameAction(game,m,player){
 		//}
 		//{Texas Hold'em
 			case(3):
+				let playerN=game.players.indexOf(player);
 				if(game.status==='open'&&player===game.players[0]&&m==='start'){
 					game.status='playing';
 					PokerNewHand(game);
-					return('First betting phase: <@'+game.players[game.turn]+"> bets first.");
+					return('Everyone antes $'+game.ante+'. First betting phase: <@'+game.players[game.turn]+'> bets first.');
 				}
 				if(m==='bank'){
-					return('$'+game.banks[game.players.indexOf(player)]);
+					return('$'+game.banks[playerN]);
 				}
 				if(m==='banks'){
 					let fs=[];
-					for(let i=0;i<10;i++){
-						if(game.players[i]){
-							fs.push({name:game.players[i]+game.dealer==i?':white_circle:':'',value:game.banks[i]<=0?'Bankrupt':'$'+game.banks[i]});
-						}
+					let rps=[];
+					for(let i=0;i<game.players.length;i++){
+						rps.push(i);
 					}
+					rps.sort((a,b)=>{return(game.banks[b]-game.banks[a]);});
+					for(let i=0;i<game.players.length;i++){
+						fs.push({
+							name:
+								(game.banks[rps[i]]<game.ante?':skull_crossbones: ':
+									(game.fold[rps[i]]?':file_folder: ':':white_flower: '))+
+								users[game.players[rps[i]]].nick+(game.dealer==rps[i]?' :white_circle:':''),
+							value:
+								game.banks[rps[i]]<=0?'Bankrupt':'$'+game.banks[rps[i]]
+						});
+					}
+					fs.push({name:"Pot",value:game.pot},{name:"Current Bet",value:game.maxBet});
 					return({embed:{
 						title:"Texas Hold'em standings",
 						fields:fs,
-						color: 7868243
+						color: 5635942
 						}});
+				}
+				if(m==='hands'){
+					return('http://pokerkeeda.com/wp-content/uploads/2017/02/cc-hand-ranking-image-72-dpi.png-1.jpg');
 				}
 				if(game.players[game.turn]!==player){
 					return("It's not your turn, it's <@"+game.players[game.turn]+">'s.");
 				}
 				if(m==='fold'){
-					game.fold[game.players.indexOf(player)]=true;
+					game.fold[playerN]=true;
 					return(PokerNextTurn(game));
 				}
-				return('`'+m+'` is not a Texas Holdem function');
+				if(m==='check'){
+					if(game.maxBet===0){
+						return(PokerNextTurn(game));
+					}
+					return("You can't check, the current bet is $"+game.maxBet+".");
+				}
+				if(m==='call'){
+					if(game.maxBet===0){
+						return("You can't call when there isn't a bet.");
+					}
+					if(game.banks[playerN]+game.bets[playerN]<game.maxBet){
+						game.pot+=game.banks[playerN];
+						game.bets[playerN]+=game.banks[playerN];
+						game.banks[playerN]=0;
+						return(['You went all in!'].concat(PokerNextTurn(game)));
+					}
+					game.pot+=game.maxBet-game.bets[playerN];
+					game.banks[playerN]-=game.maxBet-game.bets[playerN];
+					game.bets[playerN]+=game.maxBet-game.bets[playerN];
+					return(PokerNextTurn(game));
+				}
+				val=parseInt(m);
+				if(val&&val>=1&&val<=game.banks[playerN]){
+					val=Math.floor(val);
+				}
+				else{
+					if(val<0){
+						return("You can't bet a negative value.");
+					}
+					if(val>game.banks[playerN]){
+						return("You can't bet more than you have.");
+					}
+					return('Invalid bet');
+				}
+				if(val+game.bets[playerN]<game.maxBet){
+					return("You must bet at least $"+(game.maxBet-game.bets[playerN])+'.');
+				}
+				game.pot+=val;
+				game.bets[playerN]+=val;
+				game.banks[playerN]-=val;
+				if(game.bets[playerN]>game.maxBet){
+					game.maxBet=game.bets[playerN];
+				}
+				return(["You bet $"+val+", the bet is now at $"+game.maxBet+"."].concat(PokerNextTurn(game)));
 			break;
 		//}
 	}
@@ -748,9 +940,10 @@ function quitGame(game,player){
 			case(1):
 			case(2):
 				if(game.status==='open'){
+					delete openGames[game.server][game.players[0]];
 					delete users[player].current[game.server];
 					delete games[game.server][game.players[0]];
-					return;
+					return('You have terminated your game of '+game.game+'.');
 				}
 				for(let i=0;i<2;i++){
 					if(game.players[i]===player){
@@ -768,7 +961,21 @@ function quitGame(game,player){
 		//}
 		//{Texas Hold'em
 			default:
-				return("You can't quit this game, the only way to leave is for the host("+game.players[0]+") to quit.");
+				if(player===game.players[0]){
+					for(let i=0;i<game.players.length;i++){
+						if(game.banks[i]>=100){
+							users[game.players[i]].won++;
+						}
+						users[game.players[i]].played++;
+						delete users[game.players[i]].current[game.server];
+					}
+					if(openGames[game.server].hasOwnProperty(game.players[0])){
+						delete openGames[game.server][game.players[0]];
+					}
+					delete games[game.server][game.players[0]];
+					return('The Texas Hold\'em game has been terminated.');
+				}
+				return("You can't quit this game, the only way to leave is for the host (<@"+game.players[0]+">) to quit.");
 			break;
 		//}
 	}
@@ -982,7 +1189,15 @@ client.on('message', msg => {
 		if(m[0]==='`'){
 			m=m.substr(1,m.length-2);
 			if(users.hasOwnProperty(msg.author.id)&&users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
-				msg.channel.send(gameAction(games[msg.guild.id][users[msg.author.id].current[msg.guild.id]],m,msg.author.id));
+				let txt=gameAction(games[msg.guild.id][users[msg.author.id].current[msg.guild.id]],m,msg.author.id);
+				if(Array.isArray(txt)){
+					for(let i=0;i<txt.length;i++){
+						msg.channel.send(txt[i]);
+					}
+				}
+				else{
+					msg.channel.send(txt);
+				}
 			}
 		}
 		return;
