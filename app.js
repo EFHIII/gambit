@@ -398,7 +398,6 @@ function PokerScore(hand){
     var best=0;
     for(var i=0,c=PokerCombinations(hand,5);i<c.length;i++){
         var score=PokerCalculate(c[i].sort(order));
-		console.log(score);
         if(score>best){
             best=score;
         }
@@ -412,6 +411,20 @@ function PokerNewHand(game){
 	game.fold=[];
 	game.bets=[];
 	game.hands=[];
+	for(var i=1;i>0&&i<game.players.length;i++){
+		if(game.banks[i]<game.ante){
+			users[game.players[i]].netwin+=game.banks[i]-100;
+			delete users[game.players[i]].current[game.server];
+			game.banks.splice(i,1);
+			game.players.splice(i,1);
+			i--;
+		}
+	}
+	if(game.players.length<2){
+		game.status='open';
+		game.turn=0;
+		return(true);
+	}
 	game.dealer++;
 	if(game.dealer>=game.players.length){
 		game.dealer=0;
@@ -466,8 +479,6 @@ function PokerNextPhase(game){
 			let fullHand=table.concat(game.hands[i]);
 			let score=PokerScore(fullHand);
 			txt.push('<@'+game.players[i]+'>: '+hands[Math.floor(score/10000000000)]+'\n'+printCards(game.hands[i]));
-			console.log(fullHand);
-			console.log(score+' : '+users[game.players[i]].nick);
 			if(score>top[0]){
 				top[0]=score;
 				top[1]=[i];
@@ -480,8 +491,10 @@ function PokerNextPhase(game){
 			game.banks[top[1][i]]+=game.pot/top[1].length;
 		}
 		let oldPot=game.pot;
-		PokerNewHand(game);
-		if(top[1].length>1){
+		if(PokerNewHand(game)){
+			txt.push('Not enough players.');
+		}
+		else if(top[1].length>1){
 			let tmp="";
 			for(let i=0;i<top[1].length;i++){
 				tmp+="<@"+game.players[top[1][i]]+">";
@@ -508,7 +521,7 @@ function PokerNextPhase(game){
 		game.turn=0;
 	}
 	let=i=0;
-	while(i++<10&&(!game.players[game.turn]||game.banks[game.turn]<=0)){
+	while(i++<10&&(!game.players[game.turn]||game.banks[game.turn]<=0||game.fold[game.turn])){
 		game.turn++;
 		if(game.turn>=game.players.length){
 			game.turn=0;
@@ -526,6 +539,13 @@ function PokerNextTurn(game){
 	game.turn++;
 	if(game.turn>game.players.length){
 		game.turn=0;
+	}
+	let=i=0;
+	while(i++<10&&(game.fold[game.turn])){
+		game.turn++;
+		if(game.turn>=game.players.length){
+			game.turn=0;
+		}
 	}
 	if(game.players.length<2){
 		return(['Not enough players.']);
@@ -546,7 +566,9 @@ function PokerNextTurn(game){
 				game.banks[i]+=game.pot;
 				game.good=false;
 				let oldPot=game.pot;
-				PokerNewHand(game);
+				if(PokerNewHand(game)){
+					return(["<@"+game.players[i]+"> won $"+oldPot+"!\n","Not enough players."]);
+				}
 				return(["<@"+game.players[i]+"> won $"+oldPot+"!\n",
 				'Everyone antes $'+game.ante+'. First betting phase: <@'+game.players[game.turn]+'> bets first.']);
 			}
@@ -843,7 +865,9 @@ function gameAction(game,m,player){
 				let playerN=game.players.indexOf(player);
 				if(game.status==='open'&&player===game.players[0]&&m==='start'){
 					game.status='playing';
-					PokerNewHand(game);
+					if(PokerNewHand(game)){
+						return('Not enough players.');
+					}
 					return('Everyone antes $'+game.ante+'. First betting phase: <@'+game.players[game.turn]+'> bets first.');
 				}
 				if(m==='bank'){
@@ -963,10 +987,7 @@ function quitGame(game,player){
 			default:
 				if(player===game.players[0]){
 					for(let i=0;i<game.players.length;i++){
-						if(game.banks[i]>=100){
-							users[game.players[i]].won++;
-						}
-						users[game.players[i]].played++;
+						users[game.players[i]].netwin+=game.banks[i]-100;
 						delete users[game.players[i]].current[game.server];
 					}
 					if(openGames[game.server].hasOwnProperty(game.players[0])){
@@ -975,7 +996,16 @@ function quitGame(game,player){
 					delete games[game.server][game.players[0]];
 					return('The Texas Hold\'em game has been terminated.');
 				}
-				return("You can't quit this game, the only way to leave is for the host (<@"+game.players[0]+">) to quit.");
+				let n=game.players.indexOf(player);
+				game.fold[n]=true;
+				let winn=game.banks[n]-100;
+				users[game.players[n]].netwin+=game.banks[n]-100;
+				delete users[game.players[n]].current[game.server];
+				game.banks[n]=0;
+				if(game.turn==n){
+					return(["You forfeited your turn by leaving the table with a net winnings of $"+winn+"."].concat(PokerNextTurn(game)));
+				}
+				return("You have left the table with a net winnings of $"+winn+".");
 			break;
 		//}
 	}
@@ -1072,10 +1102,11 @@ const GameCommands={
 					{name:'Won',value:p.won+"/"+p.played},
 					{name:'Tied',value:p.tied},
 					{name:'Quit',value:p.quit},
+					{name:'Net Gambling Winnings',value:p.netwin<0?"-":""+"$"+Math.abs(p.netwin)},
 					{name:'Server status',value:p.current.hasOwnProperty(msg.guild.id)?"Currently playing "+gameNames[games[msg.guild.id][p.current[msg.guild.id]].game]:"Not currently in a game on this server."}
 		],
 				color: 3447003
-			}});//.setColor('lime green'));
+			}});
 			}catch(e){
 				return('I need embed permissions in this channel.');
 			}
@@ -1094,6 +1125,7 @@ const GameCommands={
 					{name:'Won',value:p.won+"/"+p.played},
 					{name:'Tied',value:p.tied},
 					{name:'Quit',value:p.quit},
+					{name:'Net Gambling Winnings',value:p.netwin<0?"-":""+"$"+Math.abs(p.netwin)},
 					{name:'Server status',value:p.current.hasOwnProperty(msg.guild.id)?"Currently playing "+gameNames[games[msg.guild.id][p.current[msg.guild.id]].game]:"Not currently in a game on this server."}
 		],
 				color: 3447003
@@ -1188,7 +1220,7 @@ client.on('message', msg => {
 	if(m[0]!==pre){
 		if(m[0]==='`'){
 			m=m.substr(1,m.length-2);
-			if(users.hasOwnProperty(msg.author.id)&&users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
+			if(msg.guild&&users.hasOwnProperty(msg.author.id)&&users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
 				let txt=gameAction(games[msg.guild.id][users[msg.author.id].current[msg.guild.id]],m,msg.author.id);
 				if(Array.isArray(txt)){
 					for(let i=0;i<txt.length;i++){
@@ -1211,7 +1243,7 @@ client.on('message', msg => {
 	}
 	
 	if(!msg.guild){
-		msg.channel.send('invalid command');
+		msg.channel.send('That command doesn\'t work in DM');
 		return;
 	}
 	if(!openGames.hasOwnProperty(msg.guild.id)){
@@ -1225,6 +1257,7 @@ client.on('message', msg => {
 			lost:0,
 			tied:0,
 			quit:0,
+			netwin:0,
 			current:{}
 		};
 		userCount++;
