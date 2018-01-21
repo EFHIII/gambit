@@ -5,5 +5,6 @@ Currently supported games:
 * Connect 4
 * Othello
 * Tic-Tac-Toe
+* Texas Hold'em
 
 Discord community link: [GamBit Discord](https://discord.gg/WYYYNjM)
