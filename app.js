@@ -1102,7 +1102,7 @@ const GameCommands={
 					{name:'Won',value:p.won+"/"+p.played},
 					{name:'Tied',value:p.tied},
 					{name:'Quit',value:p.quit},
-					{name:'Net Gambling Winnings',value:p.netwin<0?"-":""+"$"+Math.abs(p.netwin)},
+					{name:'Net Gambling Winnings',value:(p.netwin<0?"-":"")+"$"+Math.abs(p.netwin)},
 					{name:'Server status',value:p.current.hasOwnProperty(msg.guild.id)?"Currently playing "+gameNames[games[msg.guild.id][p.current[msg.guild.id]].game]:"Not currently in a game on this server."}
 		],
 				color: 3447003
@@ -1125,7 +1125,7 @@ const GameCommands={
 					{name:'Won',value:p.won+"/"+p.played},
 					{name:'Tied',value:p.tied},
 					{name:'Quit',value:p.quit},
-					{name:'Net Gambling Winnings',value:p.netwin<0?"-":""+"$"+Math.abs(p.netwin)},
+					{name:'Net Gambling Winnings',value:(p.netwin<0?"-":"")+"$"+Math.abs(p.netwin)},
 					{name:'Server status',value:p.current.hasOwnProperty(msg.guild.id)?"Currently playing "+gameNames[games[msg.guild.id][p.current[msg.guild.id]].game]:"Not currently in a game on this server."}
 		],
 				color: 3447003
