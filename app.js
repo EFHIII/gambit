@@ -312,7 +312,7 @@ function PokerCombinations(cards,groups){
         if (groups===1){
             return cards.map(function(card){return[card];});
         }
-        for (var i=0;i<cards.length-groups;i++){
+        for (var i=0;i<cards.length-groups+1;i++){
             var head =cards.slice(i,(i+1));
             var tails =PokerCombinations(cards.slice(i+1),(groups-1));
             for (var _i=0,tails_1=tails;_i<tails_1.length;_i++) {
@@ -890,7 +890,7 @@ function gameAction(game,m,player){
 								game.banks[rps[i]]<=0?'Bankrupt':'$'+game.banks[rps[i]]
 						});
 					}
-					fs.push({name:"Pot",value:game.pot},{name:"Current Bet",value:game.maxBet});
+					fs.push({name:"Pot",value:'$'+game.pot},{name:"Current Bet",value:'$'+game.maxBet});
 					return({embed:{
 						title:"Texas Hold'em standings",
 						fields:fs,
