@@ -413,7 +413,6 @@ function PokerNewHand(game){
 	game.hands=[];
 	for(var i=1;i>0&&i<game.players.length;i++){
 		if(game.banks[i]<game.ante){
-			users[game.players[i]].netwin+=game.banks[i]-100;
 			delete users[game.players[i]].current[game.server];
 			game.banks.splice(i,1);
 			game.players.splice(i,1);
@@ -476,15 +475,17 @@ function PokerNextPhase(game){
 		let table=game.deck.slice(0,5);
 		txt.push('The table:\n'+printCards(table));
 		for(let i=0;i<game.players.length;i++){
-			let fullHand=table.concat(game.hands[i]);
-			let score=PokerScore(fullHand);
-			txt.push('<@'+game.players[i]+'>: '+hands[Math.floor(score/10000000000)]+'\n'+printCards(game.hands[i]));
-			if(score>top[0]){
-				top[0]=score;
-				top[1]=[i];
-			}
-			else if(score===top[0]){
-				top[1].push(i);
+			if(!game.fold[i]){
+				let fullHand=table.concat(game.hands[i]);
+				let score=PokerScore(fullHand);
+				txt.push('<@'+game.players[i]+'>: '+hands[Math.floor(score/10000000000)]+'\n'+printCards(game.hands[i]));
+				if(score>top[0]){
+					top[0]=score;
+					top[1]=[i];
+				}
+				else if(score===top[0]){
+					top[1].push(i);
+				}
 			}
 		}
 		for(let i=0;i<top[1].length;i++){
@@ -555,7 +556,7 @@ function PokerNextTurn(game){
 	for(let i=0;i<game.players.length;i++){
 		if(!game.fold[i]){
 			stillIn++;
-			if(game.bets[i]<game.maxBet){
+			if(game.bets[i]<game.maxBet&&game.banks[i]>0){
 				belowMax=true;
 			}
 		}
@@ -1003,9 +1004,9 @@ function quitGame(game,player){
 				delete users[game.players[n]].current[game.server];
 				game.banks[n]=0;
 				if(game.turn==n){
-					return(["You forfeited your turn by leaving the table with a net winnings of $"+winn+"."].concat(PokerNextTurn(game)));
+					return(["You forfeited your turn by leaving the table with a net winnings of "+(winn<0?'-':'')+"$"+Math.abs(winn)+"."].concat(PokerNextTurn(game)));
 				}
-				return("You have left the table with a net winnings of $"+winn+".");
+				return("You have left the table with a net winnings of "+(winn<0?'-':'')+"$"+Math.abs(winn)+".");
 			break;
 		//}
 	}
@@ -1176,6 +1177,9 @@ const GameCommands={
 	join:function(msg,args){
 		if(users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
 			return("You can't join a game in a server where you're already participating in another game.");
+		}
+		if(args.length===0){
+			return("There you go, you're all alone. Happy?");
 		}
 		let m=args[0].replace('<@','').replace('!','').replace('>','');
 		if(openGames[msg.guild.id].hasOwnProperty(m)){
