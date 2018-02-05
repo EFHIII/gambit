@@ -125,14 +125,17 @@ module.game.prototype.action=function(m,player,users,games,openGames){
 	rep="";
 	win=TTTWin(this.playfield);
 	if(win===2){
-		rep="<@"+player+"> WON!";
+		rep="<@"+player+"> WON $"+(this.buyIn>0?this.pot:2)+"!";
 		users[player].won++;
+		users[player].bank+=this.buyIn>0?this.pot:2;
 		users[this.players[this.turn]].lost++;
 	}
 	else if(win===1){
 		rep="Cats game, nobody won. :cry:";
 		users[player].tied++;
+		users[player].bank+=this.buyIn;
 		users[this.players[this.turn]].tied++;
+		users[this.players[this.turn]].bank+=this.buyIn;
 	}
 	else{
 		rep="<@"+this.players[this.turn]+">, your turn!";
@@ -152,8 +155,9 @@ module.game.prototype.quit=function(player,users,games,openGames){
 	if(this.status==='open'){
 		delete openGames[this.server][this.players[0]];
 		delete users[player].current[this.server];
+		users[player].bank+=this.pot;
 		delete games[this.server][this.players[0]];
-		return('You have terminated your game of '+this.game+'.');
+		return('You have terminated your game of Tic-Tac-Toe.');
 	}
 	for(let i=0;i<2;i++){
 		if(this.players[i]===player){
@@ -161,11 +165,12 @@ module.game.prototype.quit=function(player,users,games,openGames){
 		}
 		else{
 			users[this.players[i]].won++;
+			users[this.players[i]].bank+=this.pot;
 		}
 		users[this.players[i]].played++;
 		delete users[this.players[i]].current[this.server];
 	}
 	delete games[this.server][this.players[0]];
-	return('You have forfieted the game of '+this.game+'.');
+	return('You have forfieted the game of Tic-Tac-Toe.');
 };
 

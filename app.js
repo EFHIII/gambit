@@ -1,20 +1,39 @@
 const Discord = require("discord.js");
+const fs = require("fs");
 
 const client=new Discord.Client();
 const openGames={};
 const games={};
+const userLoad=require('./users.json');
 const users={};
+const guilds={};
 
 const pre="^";
 
 let gameCount=0;
 let userCount=0;
 
-const gameNames=['tic tac toe','connect 4','othello','texas holdem'];
+const gameNames=['tic tac toe','connect 4','othello','texas holdem','no limit holdem'];
 
 //{functions
 function DM(id,msg){
 	client.fetchUser(id).then(x=>x.send(msg));
+};
+
+function load(){
+	for(let i in userLoad){
+		users[i]=userLoad[i];
+		users[i].current={};
+	}
+};
+load();
+function save(){
+	let data = JSON.stringify(users,null,2);
+	
+	fs.writeFile('./users.json', data, (err) => {  
+		if (err) throw err;
+		//console.log('User data saved.');
+	});
 };
 //}
 
@@ -49,9 +68,11 @@ const help={
 	rng:'syntax: rng <sides*>\nrolls an n sided die, default is 6',
 	stats:'syntax: stats <username*>\ngives statistics on either you or a specified user',
 	
+	bank:'syntax: bank\ntells you how much you have in your bank',
 	game:'syntax: game list\nlists the currently supported games',
+	give:'syntax: give <user> <amount>\ngives the specified user the specified amount of credit from your account',
 	open:'syntax: open games\nlists all open games',
-	new:'syntax: new game <game>\ncreates a new open game of the game specified (chosen from the game list)',
+	new:'syntax: new game <game> <buy-in*>\ncreates a new open game of the game specified (chosen from the game list). If a buy-in is specified, it will go into the pot and anyone who joins must pay that buy-in',
 	join:'syntax: join <@host>\nlets you join a game with a given game host. You must mention the host.',
 	quit:'syntax: quit <reason*>\nlets you quit and forfeit a game you\'re in',
 	leave:'syntax: leave <reason*>\nlets you leave and forfeit a game you\'re in',
@@ -69,10 +90,13 @@ const GeneralCommands={
 				"ping - responds with 'pong'\n\n"+
 				"rng <sides> - rolls an n sided die, default is 6'\n\n"+
 				"stats <username*> - gives you stats on a given user. Default is yourself\n\n"+
+				"version - links the bot's source code\n\n"+
 			"Game Commands\n=============\n"+
+				"bank - tells you how much you have in your bank\n\n"+
 				"game list - lists the currently supported games\n\n"+
+				"give <user> <amount> - gives the specified user the specified amount of credit from your account\n\n"+
+				"new game <game> <buy-in*> - creates a new open game of the game specified (chosen from the game list)\n\n"+
 				"open games - lists all open games\n\n"+
-				"new game <game> - creates a new open game of the game specified (chosen from the game list)\n\n"+
 				"join <@host> - lets you join a game with a given game host\n\n"+
 				"quit game - lets you quit and forfeit a game you're in"+
 			"\n```");
@@ -110,21 +134,46 @@ const GeneralCommands={
 	}
 };
 const GameCommands={
+	give:function(msg,args){
+		if(args.length>1){
+			let m=args[0].replace('<@','').replace('!','').replace('>','');
+			if(!users.hasOwnProperty(m)){
+				return("That user isn't in my database.");
+			}
+			if(msg.author.id===m){
+				return("Consider it done. :wink:");
+			}
+			let v=parseInt(args[1]);
+			if(v<0){
+				return('Nice try, thief...');
+			}
+			if(users[msg.author.id].bank<v){
+				return("You don't have that much, but the generosity is appreciated.");
+			}
+			users[msg.author.id].bank-=v;
+			users[m].bank+=v;
+			return("Transfered $"+v+" from <@"+msg.author.id+"> to <@"+m+">.");
+		}
+		return('No, you keep it :wink:');
+	},
+	bank:function(msg){
+		return('$'+users[msg.author.id].bank);
+	},
 	game:function(){
 		return(
-		"```markdown\nshort games\n===========\n"+
-			"tic tac toe - A simple 3-in-a-row game.\n"+
-		"\nlong games\n==========\n"+
-			"Connect 4 - A simple 4-in-a-row game.\n"+
-			"Othello - A game of collecting territory.\n"+
-			"Texas Holdem - The most popular poker variant\n"+
+		"```markdown\nGames\n=====\n"+
+			"pay:$2   tic tac toe - A simple 3-in-a-row game.\n"+
+			"pay:$5   Connect 4 - A simple 4-in-a-row game.\n"+
+			"pay:$8   Othello - A game of collecting territory.\n"+
+			"<Poker>  Texas Holdem - The most popular poker variant\n"+
+			"<Poker>  No Limit Holdem - Texas Holdem, but without a limit\n"+
 		"```");
 	},
 	open:function(msg){
-		let ans="```markdown\nOpen games\n==========";
+		let ans="```md\nOpen games\n==========";
 		let gms=openGames[msg.guild.id];
 		for(let i in gms){
-			ans+="\n"+games[msg.guild.id][i].players.length+"/"+games[msg.guild.id][i].max+" "+gameNames[games[msg.guild.id][i].game]+" - host: "+users[i].nick;
+			ans+="\n"+games[msg.guild.id][i].players.length+"/"+games[msg.guild.id][i].max+" "+gameNames[games[msg.guild.id][i].game]+" - host: "+users[i].nick+(games[msg.guild.id][i].buyIn>0?" * Buy-In: $"+games[msg.guild.id][i].buyIn+' *':'');
 		}
 		ans+="```";
 		return(ans);
@@ -136,6 +185,7 @@ const GameCommands={
 			return({embed:{
 				title:p.nick+"'s stats",
 				fields:[
+					{name:'Bank',value:'$'+p.bank},
 					{name:'Won',value:p.won+"/"+p.played},
 					{name:'Tied',value:p.tied},
 					{name:'Quit',value:p.quit},
@@ -151,14 +201,14 @@ const GameCommands={
 		else{
 			let m=args[0].replace('<@','').replace('!','').replace('>','');
 			if(!users.hasOwnProperty(m)){
-				return("That user isn't in my database");
-				return;
+				return("That user isn't in my database.");
 			}
 			let p=users[m];
 			try{
 			return({embed:{
 				title:p.nick+"'s stats",
 				fields:[
+					{name:'Bank',value:'$'+p.bank},
 					{name:'Won',value:p.won+"/"+p.played},
 					{name:'Tied',value:p.tied},
 					{name:'Quit',value:p.quit},
@@ -193,11 +243,22 @@ const GameCommands={
 			return("You can't start a new game in a server where you're already participating in another game.");
 		}
 		let mm=args.shift();
+		let buyIn=0;
+		if(Math.abs(parseInt(args[args.length-1]))>0){
+			buyIn=Math.abs(parseInt(args[args.length-1]));
+			args.pop();
+			if(users[msg.author.id].bank<buyIn){
+				return("You can't afford your own Buy-in!");
+			}
+			users[msg.author.id].bank-=buyIn;
+		}
 		let m=args.join(' ');
 		let good=false;
 		for(let i=gameNames.length-1;i>=0;i--){
 			if(m===gameNames[i]){
 				games[msg.guild.id][msg.author.id]=newGame(i,msg.author.id,msg.guild.id);
+				games[msg.guild.id][msg.author.id].buyIn=buyIn;
+				games[msg.guild.id][msg.author.id].pot=buyIn;
 				openGames[msg.guild.id][msg.author.id]=i;
 				users[msg.author.id].current[msg.guild.id]=msg.author.id;
 				let txt="A new game of "+gameNames[i]+" has been successfully created!";
@@ -220,6 +281,11 @@ const GameCommands={
 		let m=args[0].replace('<@','').replace('!','').replace('>','');
 		if(openGames[msg.guild.id].hasOwnProperty(m)){
 			const game=games[msg.guild.id][m];
+			if(users[msg.author.id].bank<game.buyIn){
+				return("This game has a buy-in of $"+game.buyIn+" and you only have $"+users[msg.author.id].bank+".");
+			}
+			users[msg.author.id].bank-=game.buyIn;
+			game.pot+=game.buyIn;
 			gameJoin(game,msg.author.id);
 			users[msg.author.id].current[msg.guild.id]=m;
 			if(game.max===game.players.length){
@@ -239,11 +305,55 @@ const GameCommands={
 	},
 };
 const devCommands={
+	ban:function(msg,args){
+		if(args.length>0){
+			let m=args[0].replace('<@','').replace('!','').replace('>','');
+			if(!users.hasOwnProperty(m)){
+				return("That user isn't in my database.");
+			}
+			if(msg.author.id===m){
+				return("Are you sure about that?");
+			}
+			users[m].banned=true;
+			return(":hammer:");
+		}
+		return('Please specify a user');
+	},
+	unban:function(msg,args){
+		if(args.length>0){
+			let m=args[0].replace('<@','').replace('!','').replace('>','');
+			if(!users.hasOwnProperty(m)){
+				return("That user isn't in my database.");
+			}
+			if(msg.author.id===m){
+				return("Really?");
+			}
+			users[m].banned=false;
+			return(":wave:");
+		}
+		return('Please specify a user');
+	},
+	fund:function(msg,args){
+		if(args.length>0){
+			let v=parseInt(args[0]);
+			users[msg.author.id].bank+=v;
+			return("Okay, I gave you $"+v+". Spend it wisely.");
+		}
+		return('Please specify a value.');
+	},
+	spring:function(){
+		//DM('402122635552751616','This is a special ping only for the elite (Sponge, SpongeBot, and EFHIII)');
+		DM('167711491078750208','This is a special ping only for the elite (Sponge, SpongeBot, and EFHIII)');
+		DM('134800705230733312','This is a special ping only for the elite (Sponge, SpongeBot, and EFHIII)');
+		return(':wink:');
+	},
 	users:function(){
 		let ans="```md\nUsers\n=====";
 		for(let i in users){
-			ans+='\n'+users[i].nick+': '+i+'\n'+Array((users[i].nick+': '+i).length+1).join('=')+
-				'\nWon:'+users[i].won+'/'+users[i].played+
+			ans+='\n'+users[i].nick+': '+i+'\n'+Array((users[i].nick+': '+i).length+1).join('=')+'\n'+
+				(users[i].banned?' * BANNED * ':'')+
+				' bank:$'+users[i].bank+
+				' Won:'+users[i].won+'/'+users[i].played+
 				' Winnings:'+((users[i].netwin<0?"-":"")+"$"+Math.abs(users[i].netwin));
 		}
 		ans+="```";
@@ -252,9 +362,9 @@ const devCommands={
 	games:function(msg,args){
 		let ans="```md\nGames\n=====";
 		for(let j in games){
-			ans+='\n\n'+j+'\n'+Array((''+j).length+1).join('=');
+			ans+='\n\n'+guilds[j].name+'\n'+Array((guilds[j].name).length+1).join('=');
 			for(let i in games[j]){
-				ans+="\n"+games[j][i].players.length+"/"+games[j][i].max+" "+gameNames[games[j][i].game]+" - host: "+users[i].nick;
+				ans+="\n"+games[j][i].players.length+"/"+games[j][i].max+" "+gameNames[games[j][i].game]+" - host: "+users[i].nick+(games[j][i].buyIn>0?" * Buy-In: $"+games[j][i].buyIn+' *':'');
 			}
 		}
 		ans+="```";
@@ -263,21 +373,13 @@ const devCommands={
 	opengames:function(msg,args){
 		let ans="```md\nOpen games\n==========";
 		for(let j in openGames){
-			ans+='\n\n'+j+'\n'+Array((''+openGames[j]).length+1).join('=');
+			ans+='\n\n'+guilds[j].name+'\n'+Array((guilds[j].name).length+1).join('=');
 			for(let i in openGames[j]){	
-				ans+="\n"+openGames[j][i].players.length+"/"+openGames[j][i].max+" "+gameNames[openGames[j][i].game]+" - host: "+users[i].nick;
+				ans+="\n"+games[j][i].players.length+"/"+games[j][i].max+" "+gameNames[games[j][i].game]+" - host: "+users[i].nick+(games[j][i].buyIn>0?" * Buy-In: $"+games[j][i].buyIn+' *':'');
 			}
 		}
 		ans+="```";
 		return(ans);
-	},
-	rng:function(msg,args){
-		if(args.length===0){
-			return('You rolled a '+Math.floor(Math.random()*6+1)+'!');
-		}
-		else{
-			return('You rolled a '+Math.floor(Math.random()*parseInt(args[0])+1)+'!');
-		}
 	}
 };
 //}
@@ -299,6 +401,7 @@ client.on("guildDelete", guild => {
 client.on('message', msg => {
 	//console.log(msg.author.tag+": "+msg.content);
 	if(msg.author.bot){return;}
+	if(users.hasOwnProperty(msg.author.id)&&users[msg.author.id].banned){return;}
 	let m=msg.content.toLowerCase();
 	if(m[0]!==pre){
 		if(m[0]==='`'){
@@ -315,6 +418,7 @@ client.on('message', msg => {
 				}
 			}
 		}
+		save();
 		return;
 	};
 	m=m.substr(1);
@@ -331,6 +435,7 @@ client.on('message', msg => {
 	}
 	if(!openGames.hasOwnProperty(msg.guild.id)){
 		openGames[msg.guild.id]={};
+		guilds[msg.guild.id]=msg.guild;
 	}
 	if(!users.hasOwnProperty(msg.author.id)){
 		users[msg.author.id]={
@@ -341,6 +446,8 @@ client.on('message', msg => {
 			tied:0,
 			quit:0,
 			netwin:0,
+			bank:0,
+			banned:false,
 			current:{}
 		};
 		userCount++;
@@ -352,6 +459,7 @@ client.on('message', msg => {
 	
 	if(GameCommands.hasOwnProperty(cmd)){
 		msg.channel.send(GameCommands[cmd](msg,m));
+		save();
 		return;
 	}
 	
@@ -360,6 +468,7 @@ client.on('message', msg => {
 	}
 	if(devCommands.hasOwnProperty(cmd)){
 		msg.channel.send(devCommands[cmd](msg,m));
+		save();
 		return;
 	}
 });
