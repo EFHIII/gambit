@@ -8,6 +8,10 @@ const userLoad=require('./users.json');
 const users={};
 const guilds={};
 
+const subjects=require('./subjects.json');
+const helpr=require('./helpRequests.json');
+const drafts={};
+
 const pre="^";
 
 let gameCount=0;
@@ -24,6 +28,7 @@ function load(){
 	for(let i in userLoad){
 		users[i]=userLoad[i];
 		users[i].current={};
+		userCount++;
 	}
 };
 load();
@@ -33,6 +38,18 @@ function save(){
 	fs.writeFile('./users.json', data, (err) => {  
 		if (err) throw err;
 		//console.log('User data saved.');
+	});
+	
+	let data2 = JSON.stringify(subjects,null,2);
+	
+	fs.writeFile('./subjects.json', data2, (err) => {  
+		if (err) throw err;
+	});
+	
+	let data3 = JSON.stringify(helpr,null,2);
+	
+	fs.writeFile('./helpRequests.json', data3, (err) => {  
+		if (err) throw err;
 	});
 };
 //}
@@ -67,6 +84,15 @@ const help={
 	ping:'syntax: ping\nreplies with "pong"',
 	rng:'syntax: rng <sides*>\nrolls an n sided die, default is 6',
 	stats:'syntax: stats <username*>\ngives statistics on either you or a specified user',
+	subjects:'syntax: subjects\nlists all the valid mentor subjects',
+	
+	mentor:"```md\n^mentor\n======\n * The prefix ^mentor must be used at the beginning of all of these *\n\n"+
+			"<blank>- gives personal stats on your mentoring\n\n"+
+			"help <details> - Submits a help request to potential mentors to DM you help. Use detail to describe what you need help with.\n\n"+
+			"rate <@user> <#1-10> - acknowledges that this user helped you, closing your help request, and giving them an appropriate rating\n\n"+
+			"can <subject(s)> - specifies subjects that you feel qualified and willing to help people with\n\n"+
+			"can't <subject(s)> - specifies subjects that you no longer feel qualified to help people with\n\n"+
+		"\n```",
 	
 	bank:'syntax: bank\ntells you how much you have in your bank',
 	game:'syntax: game list\nlists the currently supported games',
@@ -83,7 +109,7 @@ const GeneralCommands={
 	},
 	help:function(msg,args){
 		if(args.length===0){
-			msg.author.send("```markdown\nHelp\n====\n * The prefix ^ must be used at the beginning of any bot command *\n\n"+
+			msg.author.send("```md\nHelp\n====\n * The prefix ^ must be used at the beginning of any bot command *\n\n"+
 			"General Commands\n================\n"+
 				"echo  <message>- have the bot repeat a phrase\n\n"+
 				"help <command*> - The help command, with an optional command specific help argument\n\n"+
@@ -91,6 +117,9 @@ const GeneralCommands={
 				"rng <sides> - rolls an n sided die, default is 6'\n\n"+
 				"stats <username*> - gives you stats on a given user. Default is yourself\n\n"+
 				"version - links the bot's source code\n\n"+
+			"Utility Commands\n================\n"+
+				"subjects - lists all valid mentor subjects\n\n"+
+				"mentor <mentor-command*> - a prefix for all the mentor commands; for more details: ^help mentor\n\n"+
 			"Game Commands\n=============\n"+
 				"bank - tells you how much you have in your bank\n\n"+
 				"game list - lists the currently supported games\n\n"+
@@ -134,6 +163,151 @@ const GeneralCommands={
 	}
 };
 const GameCommands={
+	subjects:function(){
+		return(subjects.join(', '));
+	},
+	mentor:function(msg,args){
+		if(args.length==0){
+			let p=users[msg.author.id];
+			try{
+			return({embed:{
+				title:p.nick+"'s mentor stats",
+				fields:[
+					{name:'Helped',value:p.rated,inline:true},
+					{name:'Rating',value:p.rated>0?''+(Math.floor(p.rating/p.rated*100)/100):'N/A',inline:true},
+					{name:'Skills',value:p.can.length==0?'None':p.can.join(', ')},
+					{name:'Requesting',value:helpr.hasOwnProperty(msg.author.id)?helpr[msg.author.id].details:'N/A'},
+				],
+				color: 3447003
+			}});
+			}catch(e){
+				return('I need embed permissions in this channel.');
+			}
+		}
+		if(args[0]=='can'){
+			if(args.length<2){
+				return("Please specify which of these you are proficient in with ^mentor can <subject-1, subject-2, ...>\n"+subjects.join(', '));
+			}
+			let added=[];
+			let arg=args.map(x=>x.replace(/\,/g,''));
+			for(var i=1;i<arg.length;i++){
+				if(subjects.indexOf(arg[i])>-1&&users[msg.author.id].can.indexOf(arg[i])<0){
+					users[msg.author.id].can.push(arg[i]);
+					added.push(arg[i]);
+				}
+			}
+			if(added.length==0){
+				return('No valid subjects were listed.');
+			}
+			return('The follwing subjects were added to your skills list: '+added.join(', '));
+		}
+		if(args[0]=="can't"){
+			if(args.length<2){
+				return("Please specify which of these you no longer want to mentor in ^mentor can <subject-1, subject-2, ...>\n"+users[msg.author.id].can.join(', '));
+			}
+			let removed=[];
+			for(var i=2;i<args.length;i++){
+				if(users[msg.author.id].can.indexOf(args[i])>-1){
+					users[msg.author.id].can.splice(users[msg.author.id].can.indexOf(args[i]),1);
+					removed.push(args[i]);
+				}
+			}
+			if(removed.length==0){
+				return('No valid subjects were listed.');
+			}
+			return('The follwing subjects were removed from your skills list: '+removed.join(', '));
+		}
+		if(args[0]=='help'){
+			if(args.length<2){
+				if(drafts.hasOwnProperty(msg.author.id)){
+					return('Please choose atleast one subject.');
+				}
+				return('Please specify what you need help with.\n\n^mentor help <details>');
+			}
+			if(drafts.hasOwnProperty(msg.author.id)){
+				let subj=[];
+				for(let i=1;i<args.length;i++){
+					let sub=subjects.indexOf(args[i].replace(/\,/g,''));
+					if(sub>-1){
+						subj.push(subjects[sub]);
+					}
+				}
+				if(subj.length==0){
+					return("None of those are valid subjects, please choose only from the list provided.");
+				}
+				helpr[msg.author.id]={details:drafts[msg.author.id],subjects:subj};
+				let possible=[];
+				for(let i in users){
+					let match=0;
+					for(let j in subj){
+						if(users[i].can.indexOf(subj[j])>-1){
+							match++;
+						}
+					}
+					if(match>0&&i!=msg.author.id){
+						possible.push([match+2*(users[i].rated>0?users[i].rating/users[i].rated:1),i]);
+					}
+				}
+				possible.sort((a,b)=>b[0]-a[0]);
+				let cnt=0;
+				for(var i=0;i<possible.length&&i<10;i++){
+					cnt++;
+					DM(possible[i][1],"<@"+msg.author.id+"> needs help with "+drafts[msg.author.id]);
+				}
+				delete drafts[msg.author.id];
+				return('A message has been sent to '+cnt+' potential mentors.');
+			}
+			drafts[msg.author.id]=args.join(' ');
+			return("Great! Now please tell me what subjects that falls under with ^mentor help <subject-1, subject-2, ...>\nYou can choose from: "+subjects.join(', '));
+		}
+		if(args[0]=='rate'){
+			if(!helpr.hasOwnProperty(msg.author.id)){
+				return("You don't have a mentor request pending completion.");
+			}
+			if(args.length<3){
+				return('^mentor rate <user> <rating 1-10>');
+			}
+			let m=args[1].replace('<@','').replace('!','').replace('>','');
+			if(!users.hasOwnProperty(m)){
+				return("That user isn't in my database.");
+			}
+			if(msg.author.id==m){
+				return("You can't rate yourself.");
+			}
+			let rat=parseInt(args[2]);
+			if(rat>0&&rat<=10){
+				users[m].rating+=rat/10;
+				users[m].rated++;
+				delete helpr[msg.author.id];
+				if(rat>7){
+					users[m].bank+=rat*20-150;
+					return("You gave <@"+m+"> a lovely rating, earning them $"+(rat*20-150)+"!");
+				}
+				return("Thank you for your feedback.");
+			}
+			return("must be a rating 1-10");
+		}
+		if(subjects.indexOf(args[0])>-1){
+			let sub=args[0];
+			let ans="```md\n"+sub+"\n"+Array((sub).length+1).join('=');
+			let cnt=0;
+			for(let i in helpr){
+				if(helpr[i].subjects.indexOf(sub)>-1){
+					ans+='\n<@'+i+'>'+'\n'+Array((i).length+4).join('=')+
+						'\nsubjects: '+helpr[i].subjects.join(', ')+
+						'\n\nrequest:'+helpr[i].details;
+					cnt++;
+					if(cnt>=10){
+						return(ans+"```");
+					}
+				}
+			}
+			ans+="```";
+			return(ans);
+		}
+		return("That's not a valid ^mentor command.");
+	},
+	
 	give:function(msg,args){
 		if(args.length>1){
 			let m=args[0].replace('<@','').replace('!','').replace('>','');
@@ -185,13 +359,13 @@ const GameCommands={
 			return({embed:{
 				title:p.nick+"'s stats",
 				fields:[
-					{name:'Bank',value:'$'+p.bank},
-					{name:'Won',value:p.won+"/"+p.played},
-					{name:'Tied',value:p.tied},
-					{name:'Quit',value:p.quit},
-					{name:'Net Gambling Winnings',value:(p.netwin<0?"-":"")+"$"+Math.abs(p.netwin)},
-					{name:'Server status',value:p.current.hasOwnProperty(msg.guild.id)?"Currently playing "+gameNames[games[msg.guild.id][p.current[msg.guild.id]].game]:"Not currently in a game on this server."}
-		],
+					{name:'Bank',value:'$'+p.bank,inline:true},
+					{name:'Won',value:p.won+"/"+p.played,inline:true},
+					{name:'Tied',value:p.tied,inline:true},
+					{name:'Quit',value:p.quit,inline:true},
+					{name:'Net Gambling Winnings',value:(p.netwin<0?"-":"")+"$"+Math.abs(p.netwin),inline:true},
+				],
+				footer:{text:p.current.hasOwnProperty(msg.guild.id)?"Currently playing "+gameNames[games[msg.guild.id][p.current[msg.guild.id]].game]:"Not currently in a game on this server."},
 				color: 3447003
 			}});
 			}catch(e){
@@ -208,13 +382,13 @@ const GameCommands={
 			return({embed:{
 				title:p.nick+"'s stats",
 				fields:[
-					{name:'Bank',value:'$'+p.bank},
-					{name:'Won',value:p.won+"/"+p.played},
-					{name:'Tied',value:p.tied},
-					{name:'Quit',value:p.quit},
-					{name:'Net Gambling Winnings',value:(p.netwin<0?"-":"")+"$"+Math.abs(p.netwin)},
-					{name:'Server status',value:p.current.hasOwnProperty(msg.guild.id)?"Currently playing "+gameNames[games[msg.guild.id][p.current[msg.guild.id]].game]:"Not currently in a game on this server."}
-		],
+					{name:'Bank',value:'$'+p.bank,inline:true},
+					{name:'Won',value:p.won+"/"+p.played,inline:true},
+					{name:'Tied',value:p.tied,inline:true},
+					{name:'Quit',value:p.quit,inline:true},
+					{name:'Net Gambling Winnings',value:(p.netwin<0?"-":"")+"$"+Math.abs(p.netwin),inline:true},
+				],
+				footer:{text:p.current.hasOwnProperty(msg.guild.id)?"Currently playing "+gameNames[games[msg.guild.id][p.current[msg.guild.id]].game]:"Not currently in a game on this server."},
 				color: 3447003
 			}});
 			}catch(e){
@@ -305,6 +479,16 @@ const GameCommands={
 	},
 };
 const devCommands={
+	subject:function(msg,args){
+		if(args.length>0){
+			subjects.concat(args);
+			for(var i=0;i<args.length;i++){
+				subjects.push(args[i]);
+			}
+			return('Added the following to the subjects list: '+args.join(', '));
+		}
+		return('No subjects were named');
+	},
 	ban:function(msg,args){
 		if(args.length>0){
 			let m=args[0].replace('<@','').replace('!','').replace('>','');
@@ -448,6 +632,9 @@ client.on('message', msg => {
 			netwin:0,
 			bank:0,
 			banned:false,
+			can:[],
+			rated: 0,
+			rating: 0,
 			current:{}
 		};
 		userCount++;
