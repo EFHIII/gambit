@@ -1,5 +1,8 @@
 const Discord = require("discord.js");
 const fs = require("fs");
+const { stringify } = require('querystring');
+const { request } = require('https');
+
 
 const client=new Discord.Client();
 const openGames={};
@@ -12,12 +15,12 @@ const subjects=require('./subjects.json');
 const helpr=require('./helpRequests.json');
 const drafts={};
 
-const pre="^";
+let pre="^";
 
 let gameCount=0;
 let userCount=0;
 
-const gameNames=['tic tac toe','connect 4','othello','texas holdem','no limit holdem'];
+const gameNames=['tic tac toe','connect-4','othello','texas holdem','no limit holdem','taboo'];
 
 //{functions
 function DM(id,msg){
@@ -52,6 +55,23 @@ function save(){
 		if (err) throw err;
 	});
 };
+
+const update = () => {
+  const data = stringify({ server_count: client.guilds.size });
+  const req = request({
+    host: 'discordbots.org',
+    path: `/api/bots/${client.user.id}/stats`,
+    method: 'POST',
+    headers: {
+      'Authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjM5NTY2OTA5NTY2NTc2MjMwNCIsImJvdCI6dHJ1ZSwiaWF0IjoxNTE4MDg0MjQxfQ.9O_eN97xJhU1bl50p9SgTevjez-_Vo0hjNeaZRRnsq0',
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Length': Buffer.byteLength(data)
+    }
+  });
+  req.write(data);
+  req.end();
+};
+
 //}
 
 //{game functions
@@ -74,6 +94,9 @@ function gameAction(game,m,player){
 };
 function quitGame(game,player){
 	return(game.quit(player,users,games,openGames,DM));
+};
+function gameAny(game,m,player){
+	return(game.any(m,player,users,games,openGames,DM));
 };
 //}
 
@@ -347,7 +370,14 @@ const GameCommands={
 		}
 		return("That's not a valid "+pre+"mentor command.");
 	},
-	
+	pre:function(msg,args){
+		if(args.length==0){
+			return('No prefix was given.');
+		}
+		pre=args[0];
+		client.user.setGame(`${pre}help | ${client.guilds.size} guilds`,'https://www.twitch.tv/efhiii');
+		return('The prefix is now '+pre);
+	},
 	give:function(msg,args){
 		if(args.length>1){
 			let m=args[0].replace('<@','').replace('!','').replace('>','');
@@ -360,6 +390,9 @@ const GameCommands={
 			let v=parseInt(args[1]);
 			if(v<0){
 				return('Nice try, thief...');
+			}
+			if(!v){
+				return('What?!');
 			}
 			if(users[msg.author.id].bank<v){
 				return("You don't have that much, but the generosity is appreciated.");
@@ -376,8 +409,9 @@ const GameCommands={
 	game:function(){
 		return(
 		"```markdown\nGames\n=====\n"+
-			"pay:$2   tic tac toe - A simple 3-in-a-row game.\n"+
-			"pay:$5   Connect 4 - A simple 4-in-a-row game.\n"+
+			"<casual> Taboo - Try to guess the secret word.\n"+
+			"pay:$2   Tic Tac Toe - A simple 3-in-a-row game.\n"+
+			"pay:$5   Connect-4 - A simple 4-in-a-row game.\n"+
 			"pay:$8   Othello - A game of collecting territory.\n"+
 			"<Poker>  Texas Holdem - The most popular poker variant\n"+
 			"<Poker>  No Limit Holdem - Texas Holdem, but without a limit\n"+
@@ -521,6 +555,27 @@ const GameCommands={
 	},
 };
 const devCommands={
+	post:function(){
+		update();
+		return('done!');
+	},
+	guilds:function(){
+		let txt='';
+		for(let i of client.guilds){
+			//console.log(i[1]);
+			let l=10-(''+i[1].memberCount).length;
+			//txt+='\n'+i[1].name+':'+Array(l<0?0:l).join(' ')+i[1].memberCount+' users';
+			txt+='\n'+Array(l<0?0:l).join(' ')+i[1].memberCount+' users: '+i[1].name;
+		}
+		console.log(txt);
+		if(txt.length<1990){
+			return('```md'+txt+'```');
+		}
+		return("GamBit is currently in "+client.guilds.size+" guilds.");
+	},
+	users:function(){
+		return("There are currently "+userCount+" users in my database.");
+	},
 	subject:function(msg,args){
 		if(args.length>0){
 			subjects.concat(args);
@@ -567,24 +622,6 @@ const devCommands={
 		}
 		return('Please specify a value.');
 	},
-	spring:function(){
-		//DM('402122635552751616','This is a special ping only for the elite (Sponge, SpongeBot, and EFHIII)');
-		DM('167711491078750208','This is a special ping only for the elite (Sponge, SpongeBot, and EFHIII)');
-		DM('134800705230733312','This is a special ping only for the elite (Sponge, SpongeBot, and EFHIII)');
-		return(':wink:');
-	},
-	users:function(){
-		let ans="```md\nUsers\n=====";
-		for(let i in users){
-			ans+='\n'+users[i].nick+': '+i+'\n'+Array((users[i].nick+': '+i).length+1).join('=')+'\n'+
-				(users[i].banned?' * BANNED * ':'')+
-				' bank:$'+users[i].bank+
-				' Won:'+users[i].won+'/'+users[i].played+
-				' Winnings:'+((users[i].netwin<0?"-":"")+"$"+Math.abs(users[i].netwin));
-		}
-		ans+="```";
-		return(ans);
-	},
 	games:function(msg,args){
 		let ans="```md\nGames\n=====";
 		for(let j in games){
@@ -613,15 +650,20 @@ const devCommands={
 //{client events
 client.on('ready', () => {
 	console.log(`${client.user.tag} online`);
-	client.user.setGame(`^help | ${userCount} users`,'https://www.twitch.tv/efhiii');
+	//client.user.setGame(`^help | ${userCount} users`,'https://www.twitch.tv/efhiii');
+	client.user.setGame(`^help | ${client.guilds.size} guilds`,'https://www.twitch.tv/efhiii');
 });
 
 client.on("guildCreate", guild => {
-	console.log(`joined ${guild.name} (id: ${guild.id})`);
+	console.log(`joined ${guild.name} (id: ${guild.id}) with ${guild.memberCount} users`);
+	client.user.setGame(`${pre}help | ${client.guilds.size} guilds`,'https://www.twitch.tv/efhiii');
+	update();
 });
 
 client.on("guildDelete", guild => {
 	console.log(`left ${guild.name} (id: ${guild.id})`);
+	client.user.setGame(`${pre}help | ${client.guilds.size} guilds`,'https://www.twitch.tv/efhiii');
+	update();
 });
 
 client.on('message', msg => {
@@ -629,7 +671,21 @@ client.on('message', msg => {
 	if(msg.author.bot){return;}
 	if(users.hasOwnProperty(msg.author.id)&&users[msg.author.id].banned){return;}
 	let m=msg.content.toLowerCase();
-	if(m[0]!==pre){
+	if(msg.guild&&users.hasOwnProperty(msg.author.id)&&users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
+		let game=games[msg.guild.id][users[msg.author.id].current[msg.guild.id]];
+		if(game.hasOwnProperty('anys')){
+			let txt=gameAny(game,m,msg.author.id);
+			if(Array.isArray(txt)){
+				for(let i=0;i<txt.length;i++){
+					msg.channel.send(txt[i]);
+				}
+			}
+			else if(txt!==''){
+				msg.channel.send(txt);
+			}
+		}
+	}
+	if(m.indexOf(pre)!=0){
 		if(m[0]==='`'){
 			m=m.substr(1,m.length-2);
 			if(msg.guild&&users.hasOwnProperty(msg.author.id)&&users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
@@ -639,7 +695,7 @@ client.on('message', msg => {
 						msg.channel.send(txt[i]);
 					}
 				}
-				else{
+				else if(txt!==''){
 					msg.channel.send(txt);
 				}
 			}
@@ -647,7 +703,7 @@ client.on('message', msg => {
 		save();
 		return;
 	};
-	m=m.substr(1);
+	m=m.replace(pre,'');
 	m = m.split(" ");
 	let cmd=m.shift();
 	if(GeneralCommands.hasOwnProperty(cmd)){
@@ -680,7 +736,7 @@ client.on('message', msg => {
 			current:{}
 		};
 		userCount++;
-		client.user.setGame(`^help | ${userCount} users`,'https://www.twitch.tv/efhiii');
+		//client.user.setGame(`^help | ${userCount} users`,'https://www.twitch.tv/efhiii');
 	}
 	if(!games.hasOwnProperty(msg.guild.id)){
 		games[msg.guild.id]={};
