@@ -180,9 +180,8 @@ module.game.prototype.quit=function(player,users,games,openGames,DM){
 	users[this.players[n]].bank+=Math.floor(this.scores[n]/5);
 	
 	delete users[this.players[n]].current[this.server];
-	this.players.slice(n,1);
-	this.scores.slice(n,1);
-	let score=this.scores.slice(n,1);
+	this.players.splice(n,1);
+	let score=this.scores.splice(n,1);
 	if(this.turn==n){
 		this.turn--;
 		if(this.players.length<2){

@@ -71,7 +71,6 @@ const update = () => {
   req.write(data);
   req.end();
 };
-
 //}
 
 //{game functions
@@ -108,6 +107,7 @@ const help={
 	rng:'syntax: rng <sides*>\nrolls an n sided die, default is 6',
 	stats:'syntax: stats <username*>\ngives statistics on either you or a specified user',
 	subjects:'syntax: subjects\nlists all the valid mentor subjects',
+	vote:'syntax: vote\ngives you a daily $5 for voting on the bot',
 	
 	mentor:"```md\n"+pre+"mentor\n=======\n * The prefix "+pre+"mentor must be used at the beginning of all of these *\n\n"+
 			"<blank>- gives personal stats on your mentoring\n\n"+
@@ -145,6 +145,7 @@ const GeneralCommands={
 				"rng <sides> - rolls an n sided die, default is 6'\n\n"+
 				"stats <username*> - gives you stats on a given user. Default is yourself\n\n"+
 				"version - links the bot's source code\n\n"+
+				"vote - gives you a daily $5 for voting on the bot\n\n"+
 			"Utility Commands\n================\n"+
 				"subjects - lists all valid mentor subjects\n\n"+
 				"mentor <mentor-command*> - a prefix for all the mentor commands; for more details: "+pre+"help mentor\n\n"+
@@ -156,7 +157,7 @@ const GeneralCommands={
 				"open games - lists all open games\n\n"+
 				"join <@host> - lets you join a game with a given game host\n\n"+
 				"quit game - lets you quit and forfeit a game you're in"+
-			"\n```");
+			"\n```\nFor further inquiry, you can find help on the GamBit server: https://discord.gg/WYYYNjM");
 			return('Check your DMs.');
 		}
 		else{
@@ -191,6 +192,29 @@ const GeneralCommands={
 	}
 };
 const GameCommands={
+	vote:function(msg){
+		if(users[msg.author.id].hasOwnProperty('lastVote')){
+			let a=users[msg.author.id].lastVote;
+			if(Math.floor((Date.now()-a)/86400000)<1){
+				let now=86400000-(Date.now()-a);
+				let left=[
+					Math.floor(now/3600000),
+					Math.floor((now/60000)%60),
+					Math.floor((now/1000)%60)
+				];
+				return('You still have '+
+					(left[0]?left[0]+' hour'+(left[0]==1?' ':'s '):'')+
+					(left[1]?left[1]+' minute'+(left[1]==1?' ':'s and '):(left[0]?' and ':''))+
+					(left[2]?left[2]+' second'+(left[2]==1?' ':'s '):' 1 second ')+
+					'before you can vote again.');
+			}
+		}
+		else{
+			users[msg.author.id].lastVote=Date.now();
+		}
+		users[msg.author.id].bank+=5;
+		return('You can vote here! Here\'s $5 for your troubles.\nhttps://discordbots.org/bot/395669095665762304/vote');
+	},
 	subjects:function(){
 		return(subjects.join(', '));
 	},
