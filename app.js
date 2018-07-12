@@ -15,6 +15,31 @@ const subjects=require('./subjects.json');
 const helpr=require('./helpRequests.json');
 const drafts={};
 
+/*
+const history=require('./history.json');
+
+console.log('Scanning history...');
+for(var g in history){
+	console.log("Scanning '"+g+"'");
+	var cleared=0;
+	for(var c in history[g]){
+		var OMB='';//one message back
+		for(var m in history[g][c]){
+			if(OMB==history[g][c][m].msg){
+				delete history[g][c][m];
+				cleared++;
+			}
+			else{
+				OMB=history[g][c][m].msg;
+			}
+		}
+	}
+	console.log('Cleared '+cleared+' spam messages.');
+}
+console.log('Done scanning history.');
+
+//const history={};
+*/
 let pre="^";
 
 let gameCount=0;
@@ -54,6 +79,13 @@ function save(){
 	fs.writeFile('./helpRequests.json', data3, (err) => {  
 		if (err) throw err;
 	});
+	/*
+	let data4 = JSON.stringify(history);
+	
+	fs.writeFile('./history.json', data4, (err) => {  
+		if (err) throw err;
+	});
+	*/
 };
 
 const update = () => {
@@ -208,6 +240,9 @@ const GameCommands={
 					(left[2]?left[2]+' second'+(left[2]==1?' ':'s '):' 1 second ')+
 					'before you can vote again.');
 			}
+			else{
+				users[msg.author.id].lastVote=Date.now();
+			}
 		}
 		else{
 			users[msg.author.id].lastVote=Date.now();
@@ -259,8 +294,9 @@ const GameCommands={
 				return("Please specify which of these you no longer want to mentor in "+pre+"mentor can <subject-1, subject-2, ...>\n"+users[msg.author.id].can.join(', '));
 			}
 			let removed=[];
-			for(var i=2;i<args.length;i++){
-				if(users[msg.author.id].can.indexOf(args[i])>-1){
+			let arg=args.map(x=>x.replace(/\,/g,''));
+			for(var i=1;i<args.length;i++){
+				if(users[msg.author.id].can.indexOf(args[i])>-1&&&&users[msg.author.id].can.indexOf(arg[i])>=0){
 					users[msg.author.id].can.splice(users[msg.author.id].can.indexOf(args[i]),1);
 					removed.push(args[i]);
 				}
@@ -641,6 +677,9 @@ const devCommands={
 	fund:function(msg,args){
 		if(args.length>0){
 			let v=parseInt(args[0]);
+			if(!v){
+				return('error');
+			}
 			users[msg.author.id].bank+=v;
 			return("Okay, I gave you $"+v+". Spend it wisely.");
 		}
@@ -679,13 +718,13 @@ client.on('ready', () => {
 });
 
 client.on("guildCreate", guild => {
-	console.log(`joined ${guild.name} (id: ${guild.id}) with ${guild.memberCount} users`);
+	DM(134800705230733312,`joined ${guild.name} (id: ${guild.id}) with ${guild.memberCount} users`);
 	client.user.setGame(`${pre}help | ${client.guilds.size} guilds`,'https://www.twitch.tv/efhiii');
 	update();
 });
 
 client.on("guildDelete", guild => {
-	console.log(`left ${guild.name} (id: ${guild.id})`);
+	DM(134800705230733312,`left ${guild.name} (id: ${guild.id})`);
 	client.user.setGame(`${pre}help | ${client.guilds.size} guilds`,'https://www.twitch.tv/efhiii');
 	update();
 });
@@ -694,10 +733,14 @@ client.on('message', msg => {
 	//console.log(msg.author.tag+": "+msg.content);
 	if(msg.author.bot){return;}
 	if(users.hasOwnProperty(msg.author.id)&&users[msg.author.id].banned){return;}
+	let g='PM';
+	if(msg.guild){
+		g=msg.guild.name;
+	}
 	let m=msg.content.toLowerCase();
 	if(msg.guild&&users.hasOwnProperty(msg.author.id)&&users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
 		let game=games[msg.guild.id][users[msg.author.id].current[msg.guild.id]];
-		if(game.hasOwnProperty('anys')){
+		if(game&&game.hasOwnProperty('anys')){
 			let txt=gameAny(game,m,msg.author.id);
 			if(Array.isArray(txt)){
 				for(let i=0;i<txt.length;i++){
@@ -713,6 +756,7 @@ client.on('message', msg => {
 		if(m[0]==='`'){
 			m=m.substr(1,m.length-2);
 			if(msg.guild&&users.hasOwnProperty(msg.author.id)&&users[msg.author.id].current.hasOwnProperty(msg.guild.id)){
+				console.log(msg.author.tag+": "+g+': '+msg.content);
 				let txt=gameAction(games[msg.guild.id][users[msg.author.id].current[msg.guild.id]],m,msg.author.id);
 				if(Array.isArray(txt)){
 					for(let i=0;i<txt.length;i++){
@@ -724,13 +768,25 @@ client.on('message', msg => {
 				}
 			}
 		}
+		/*
+		else if(msg.content.length>10&&msg.guild){
+			if(!history.hasOwnProperty(msg.guild)){
+				history[msg.guild]={};
+			}
+			if(!history[msg.guild].hasOwnProperty(msg.channel)){
+				history[msg.guild][msg.channel]={};
+			}
+			history[msg.guild][msg.channel][Date.now()]={msg:msg.content,from:msg.author.id};
+		}
 		save();
+		*/
 		return;
 	};
 	m=m.replace(pre,'');
 	m = m.split(" ");
 	let cmd=m.shift();
 	if(GeneralCommands.hasOwnProperty(cmd)){
+		console.log(msg.author.tag+": "+g+': '+msg.content);
 		msg.channel.send(GeneralCommands[cmd](msg,m));
 		return;
 	}
@@ -767,6 +823,7 @@ client.on('message', msg => {
 	}
 	
 	if(GameCommands.hasOwnProperty(cmd)){
+		console.log(msg.author.tag+": "+g+': '+msg.content);
 		msg.channel.send(GameCommands[cmd](msg,m));
 		save();
 		return;
@@ -776,6 +833,7 @@ client.on('message', msg => {
 		return;
 	}
 	if(devCommands.hasOwnProperty(cmd)){
+		console.log(msg.author.tag+": "+g+': '+msg.content);
 		msg.channel.send(devCommands[cmd](msg,m));
 		save();
 		return;
