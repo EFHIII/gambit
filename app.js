@@ -45,7 +45,7 @@ let pre="^";
 let gameCount=0;
 let userCount=0;
 
-const gameNames=['tic tac toe','connect-4','othello','texas holdem','no limit holdem','taboo'];
+const gameNames=['tic tac toe','connect-4','othello','texas holdem','no limit holdem','taboo','kalah'];
 
 //{functions
 function DM(id,msg){
@@ -296,7 +296,7 @@ const GameCommands={
 			let removed=[];
 			let arg=args.map(x=>x.replace(/\,/g,''));
 			for(var i=1;i<args.length;i++){
-				if(users[msg.author.id].can.indexOf(args[i])>-1&&&&users[msg.author.id].can.indexOf(arg[i])>=0){
+				if(users[msg.author.id].can.indexOf(args[i])>-1&&users[msg.author.id].can.indexOf(arg[i])>=0){
 					users[msg.author.id].can.splice(users[msg.author.id].can.indexOf(args[i]),1);
 					removed.push(args[i]);
 				}
@@ -473,6 +473,7 @@ const GameCommands={
 			"pay:$2   Tic Tac Toe - A simple 3-in-a-row game.\n"+
 			"pay:$5   Connect-4 - A simple 4-in-a-row game.\n"+
 			"pay:$8   Othello - A game of collecting territory.\n"+
+			"pay:$4   Kalah - A simple mancala game\n"+
 			"<Poker>  Texas Holdem - The most popular poker variant\n"+
 			"<Poker>  No Limit Holdem - Texas Holdem, but without a limit\n"+
 		"```");
@@ -718,13 +719,13 @@ client.on('ready', () => {
 });
 
 client.on("guildCreate", guild => {
-	DM(134800705230733312,`joined ${guild.name} (id: ${guild.id}) with ${guild.memberCount} users`);
+	DM('134800705230733312',`joined ${guild.name} (id: ${guild.id}) with ${guild.memberCount} users`);
 	client.user.setGame(`${pre}help | ${client.guilds.size} guilds`,'https://www.twitch.tv/efhiii');
 	update();
 });
 
 client.on("guildDelete", guild => {
-	DM(134800705230733312,`left ${guild.name} (id: ${guild.id})`);
+	DM('134800705230733312',`left ${guild.name} (id: ${guild.id})`);
 	client.user.setGame(`${pre}help | ${client.guilds.size} guilds`,'https://www.twitch.tv/efhiii');
 	update();
 });
