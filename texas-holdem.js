@@ -136,15 +136,16 @@ function PokerScore(hand){
     return(best);
 };
 
-function PokerNewHand(game,DM){
+function PokerNewHand(users,game,DM){
 	game.deck=newDeck();
 	game.maxBet=0;
+	console.log(game.maxBet);
 	game.fold=[];
 	game.bets=[];
 	game.hands=[];
 	for(var i=1;i>0&&i<game.players.length;i++){
 		if(game.banks[i]<game.ante){
-			delete users[game.players[i]].current[game.server];
+			//delete users[game.players[i]].current[game.server];
 			game.banks.splice(i,1);
 			game.players.splice(i,1);
 			i--;
@@ -196,8 +197,9 @@ function PokerNewHand(game,DM){
 			game.fold[i]=true;
 		}
 	}
+	return(false);
 };
-function PokerNextPhase(game,DM){
+function PokerNextPhase(users,game,DM){
 	game.phase++;
 	game.good=false;
 	if(game.phase===4){
@@ -223,10 +225,7 @@ function PokerNextPhase(game,DM){
 			game.banks[top[1][i]]+=game.Pot/top[1].length;
 		}
 		let oldPot=game.Pot;
-		if(PokerNewHand(game,DM)){
-			txt.push('Not enough players.');
-		}
-		else if(top[1].length>1){
+		if(top[1].length>1){
 			let tmp="";
 			for(let i=0;i<top[1].length;i++){
 				tmp+="<@"+game.players[top[1][i]]+">";
@@ -237,12 +236,17 @@ function PokerNextPhase(game,DM){
 					tmp+="and ";
 				}
 			}
-			txt.push(tmp+" won $"+(oldPot/top[1].length)+"!\n",
-				'Everyone antes $'+game.ante+'. First betting phase: <@'+game.players[game.turn]+'> bets first.');
+			txt.push(tmp+" won $"+(oldPot/top[1].length)+"!\n");
 		}
 		else{
-			txt.push("<@"+game.players[top[1][0]]+"> won $"+oldPot+"!\n",
-				'Everyone antes $'+game.ante+'. First betting phase: <@'+game.players[game.turn]+'> bets first.');
+			txt.push("<@"+game.players[top[1][0]]+"> won $"+oldPot+"!\n");
+		}
+		PokerNewHand(users,game,DM);
+		if(game.players.length<2){
+			txt.push('Not enough players.');
+		}
+		else{
+			txt.push('Everyone antes $'+game.ante+'. First betting phase: <@'+game.players[game.turn]+'> bets first.');
 		}
 		return(txt);
 	}
@@ -267,9 +271,9 @@ function PokerNextPhase(game,DM){
 	let table=game.deck.slice(0,count[game.phase]);
 	return(["Now the "+title[game.phase]+".\n"+printCards(table),"<@"+game.players[game.turn]+"> bets first."]);
 }
-function PokerNextTurn(game,DM){
+function PokerNextTurn(users,game,DM){
 	game.turn++;
-	if(game.turn>game.players.length){
+	if(game.turn>=game.players.length){
 		game.turn=0;
 	}
 	let=i=0;
@@ -298,7 +302,7 @@ function PokerNextTurn(game,DM){
 				game.banks[i]+=game.Pot;
 				game.good=false;
 				let oldPot=game.Pot;
-				if(PokerNewHand(game,DM)){
+				if(PokerNewHand(users,game,DM)){
 					return(["<@"+game.players[i]+"> won $"+oldPot+"!\n","Not enough players."]);
 				}
 				return(["<@"+game.players[i]+"> won $"+oldPot+"!\n",
@@ -313,12 +317,12 @@ function PokerNextTurn(game,DM){
 	}
 	if(game.fold[game.turn]){
 		if(!game.good||newlyGood||belowMax){
-			return(PokerNextTurn(game,DM));
+			return(PokerNextTurn(users,game,DM));
 		}
-		return(PokerNextPhase(game,DM));
+		return(PokerNextPhase(users,game,DM));
 	}
 	if(game.good&&!newlyGood&&!belowMax){
-		return(PokerNextPhase(game,DM));
+		return(PokerNextPhase(users,game,DM));
 	}
 	return(['<@'+game.players[game.turn]+'>, your bet, the bet is at $'+game.maxBet+'.']);
 };
@@ -358,7 +362,7 @@ module.game.prototype.action=function(m,player,users,games,openGames,DM){
 	let playerN=this.players.indexOf(player);
 	if(this.status==='open'&&player===this.players[0]&&m==='start'){
 		this.status='playing';
-		if(PokerNewHand(this,DM)){
+		if(PokerNewHand(users,this,DM)){
 			return('Not enough players.');
 		}
 		return('Everyone antes $'+this.ante+'. First betting phase: <@'+this.players[this.turn]+'> bets first.');
@@ -391,18 +395,18 @@ module.game.prototype.action=function(m,player,users,games,openGames,DM){
 			}});
 	}
 	if(m==='hands'){
-		return('http://pokerkeeda.com/wp-content/uploads/2017/02/cc-hand-ranking-image-72-dpi.png-1.jpg');
+		return('http://www.tunisiewin.tn/wp-content/uploads/2017/11/poker-hand.png');
 	}
 	if(this.players[this.turn]!==player){
 		return("It's not your turn, it's <@"+this.players[this.turn]+">'s.");
 	}
 	if(m==='fold'){
 		this.fold[playerN]=true;
-		return(PokerNextTurn(this,DM));
+		return(PokerNextTurn(users,this,DM));
 	}
 	if(m==='check'){
 		if(this.maxBet===0){
-			return(PokerNextTurn(this,DM));
+			return(PokerNextTurn(users,this,DM));
 		}
 		return("You can't check, the current bet is $"+this.maxBet+".");
 	}
@@ -414,12 +418,12 @@ module.game.prototype.action=function(m,player,users,games,openGames,DM){
 			this.Pot+=this.banks[playerN];
 			this.bets[playerN]+=this.banks[playerN];
 			this.banks[playerN]=0;
-			return(['You went all in!'].concat(PokerNextTurn(this,DM)));
+			return(['You went all in!'].concat(PokerNextTurn(users,this,DM)));
 		}
 		this.Pot+=this.maxBet-this.bets[playerN];
 		this.banks[playerN]-=this.maxBet-this.bets[playerN];
 		this.bets[playerN]+=this.maxBet-this.bets[playerN];
-		return(PokerNextTurn(this,DM));
+		return(PokerNextTurn(users,this,DM));
 	}
 	val=parseInt(m);
 	if(val&&val>=1&&val<=this.banks[playerN]){
@@ -443,14 +447,17 @@ module.game.prototype.action=function(m,player,users,games,openGames,DM){
 	if(this.bets[playerN]>this.maxBet){
 		this.maxBet=this.bets[playerN];
 	}
-	return(["You bet $"+val+", the bet is now at $"+this.maxBet+"."].concat(PokerNextTurn(this,DM)));
+	return(["You bet $"+val+", the bet is now at $"+this.maxBet+"."].concat(PokerNextTurn(users,this,DM)));
 };
 
 module.game.prototype.quit=function(player,users,games,openGames,DM){
+	try{
 	if(player===this.players[0]){
 		for(let i=0;i<this.players.length;i++){
 			users[this.players[i]].netwin+=this.banks[i]-100;
-			users[this.players[i]].bank+=Math.floor((this.banks[i]-100)*(this.buyIn>0?this.buyIn/100:0.2));
+			if(this.banks[i]>100){
+				users[this.players[i]].bank+=Math.floor((this.banks[i]-100)*(this.buyIn>0?this.buyIn/100:0.2));
+			}
 			delete users[this.players[i]].current[this.server];
 		}
 		if(openGames[this.server].hasOwnProperty(this.players[0])){
@@ -460,17 +467,23 @@ module.game.prototype.quit=function(player,users,games,openGames,DM){
 		return('The Texas Hold\'em game has been terminated.');
 	}
 	let n=this.players.indexOf(player);
+	console.log('n='+n);
+	console.log(JSON.stringify(this.players));
 	this.fold[n]=true;
 	let winn=this.banks[n]-100;
-	users[this.players[n]].netwin+=this.banks[n]-100;
-	if(this.banks[n]-100>0){
+	users[player].netwin+=this.banks[n]-100;
+	if(this.banks[n]>100){
 		users[this.players[n]].bank+=Math.floor((this.banks[n]-100)*(this.buyIn>0?this.buyIn/100:0.2));
 	}
 	delete users[this.players[n]].current[this.server];
 	this.banks[n]=0;
 	if(this.turn==n){
-		return(["You forfeited your turn by leaving the table with a net winnings of "+(winn<0?'-':'')+"$"+Math.abs(winn)+"."].concat(PokerNextTurn(this,DM)));
+		return(["You forfeited your turn by leaving the table with a net winnings of "+(winn<0?'-':'')+"$"+Math.abs(winn)+"."].concat(PokerNextTurn(users,this,DM)));
 	}
 	return("You have left the table with a net winnings of "+(winn<0?'-':'')+"$"+Math.abs(winn)+".");
+	}catch(e){
+		console.log('error quiting:\n'+e);
+		return("You found a known bug, congrats! Try bugging the devs about it; server invite: WYYYNjM");
+	}
 };
 

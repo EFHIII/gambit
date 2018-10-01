@@ -225,10 +225,7 @@ function PokerNextPhase(users,game,DM){
 			game.banks[top[1][i]]+=game.Pot/top[1].length;
 		}
 		let oldPot=game.Pot;
-		if(PokerNewHand(users,game,DM)){
-			txt.push('Not enough players.');
-		}
-		else if(top[1].length>1){
+		if(top[1].length>1){
 			let tmp="";
 			for(let i=0;i<top[1].length;i++){
 				tmp+="<@"+game.players[top[1][i]]+">";
@@ -239,12 +236,17 @@ function PokerNextPhase(users,game,DM){
 					tmp+="and ";
 				}
 			}
-			txt.push(tmp+" won $"+(oldPot/top[1].length)+"!\n",
-				'Everyone antes $'+game.ante+'. First betting phase: <@'+game.players[game.turn]+'> bets first.');
+			txt.push(tmp+" won $"+(oldPot/top[1].length)+"!\n");
 		}
 		else{
-			txt.push("<@"+game.players[top[1][0]]+"> won $"+oldPot+"!\n",
-				'Everyone antes $'+game.ante+'. First betting phase: <@'+game.players[game.turn]+'> bets first.');
+			txt.push("<@"+game.players[top[1][0]]+"> won $"+oldPot+"!\n");
+		}
+		PokerNewHand(users,game,DM);
+		if(game.players.length<2){
+			txt.push('Not enough players.');
+		}
+		else{
+			txt.push('Everyone antes $'+game.ante+'. First betting phase: <@'+game.players[game.turn]+'> bets first.');
 		}
 		return(txt);
 	}
@@ -413,7 +415,7 @@ module.game.prototype.action=function(m,player,users,games,openGames,DM){
 			}});
 	}
 	if(m==='hands'){
-		return('http://pokerkeeda.com/wp-content/uploads/2017/02/cc-hand-ranking-image-72-dpi.png-1.jpg');
+		return('http://www.tunisiewin.tn/wp-content/uploads/2017/11/poker-hand.png');
 	}
 	if(this.players[this.turn]!==player){
 		return("It's not your turn, it's <@"+this.players[this.turn]+">'s.");
