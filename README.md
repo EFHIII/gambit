@@ -7,5 +7,6 @@ Currently supported games:
 * Taboo
 * Tic-Tac-Toe
 * Texas Hold'em
+* Mancala (Kalah)
 
 Discord community link: [GamBit Discord](https://discord.gg/WYYYNjM)
